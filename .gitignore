@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+
+# CMake
+CMakeLists.txt
+CMakePresets.json
+cmake/
+
+# Drivers
+Drivers/
+
+# Linker & startup
+*.ld
+*.s
+
+# Archives
+*.zip
+
+# Everything else not in Core/, *.ioc, *.md
