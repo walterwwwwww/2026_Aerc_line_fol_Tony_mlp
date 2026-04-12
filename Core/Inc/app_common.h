@@ -24,7 +24,7 @@ extern TIM_HandleTypeDef  htim4;   // 右编码器 外部计数 (PD12)
 extern TIM_HandleTypeDef  htim7;   // 1ms 定时中断
 extern SPI_HandleTypeDef  hspi1;   // IMU (PB3/PB4/PB5, CS=PD7)
 extern SPI_HandleTypeDef  hspi2;   // 14路传感器板 (PB13/PB14/PB15, CS1=PD8, CS2=PD9)
-extern UART_HandleTypeDef huart2;  // 调试串口 (PD5/PD6)
+extern UART_HandleTypeDef huart2;  // 调试串口 / VOFA+ (PD5/PD6)
 extern UART_HandleTypeDef huart3;  // 超声波串口 (PB10/PB11)
 
 /* -------- 各模块头文件 -------- */
@@ -34,5 +34,6 @@ extern UART_HandleTypeDef huart3;  // 超声波串口 (PB10/PB11)
 #include "app_gyro.h"
 #include "app_button.h"
 #include "app_control.h"
+#include "app_vofa.h"       /* VOFA+ 数据发送 (DMA) */
 
 #endif /* APP_COMMON_H */

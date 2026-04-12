@@ -31,6 +31,7 @@
  *   3) ADC 传感器读取
  *   4) 按键读取
  *   5) 主状态机
+ *   6) VOFA+ 数据发送 (DMA, 不阻塞)
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -44,5 +45,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         app_get_button();       // 按键 (原 nyy_get_anniu)
 
         app_START(0);           // 主状态机 (原 START(0))
+
+        app_vofa_send();        // VOFA+ DMA 发送 (内部自动分频, 不阻塞)
     }
 }

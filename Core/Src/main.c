@@ -107,6 +107,7 @@ int main(void)
   app_gyro_init();
   // app_fengshan(1);   // 风扇, 如需要取消注释 (~24s 渐加速)
   app_adc_init();
+  app_vofa_init();     // VOFA+ DMA 初始化 (必须在 MX_DMA_Init 和 MX_USART2_UART_Init 之后)
   HAL_TIM_Base_Start_IT(&htim7);  // 启动 1ms 控制中断!
   /* USER CODE END 2 */
 
@@ -117,7 +118,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    printf("%f,%f\r\n", jiaosudutobe, jiaosudu);
+    /*
+     * ⚠️ printf 已注释: USART2 现在由 VOFA+ DMA 独占
+     *    printf 的阻塞发送会和 DMA 冲突, 导致数据错乱
+     *    所有调试数据都通过 VOFA+ 10 个通道查看
+     */
+    // printf("%f,%f\r\n", jiaosudutobe, jiaosudu);
     HAL_Delay(10);
   }
   /* USER CODE END 3 */
@@ -169,6 +175,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/*
+ * ⚠️ _write / printf 重定向已移除
+ *    USART2 现在由 VOFA+ DMA 独占使用
+ *    如果需要恢复 printf, 必须先关闭 VOFA (注释掉 app_vofa_init 和 app_vofa_send)
+ */
+/*
 #ifdef __GNUC__
 int _write(int fd, char *ptr, int len)
 {
@@ -176,6 +188,7 @@ int _write(int fd, char *ptr, int len)
     return len;
 }
 #endif
+*/
 /* USER CODE END 4 */
 
 /**
