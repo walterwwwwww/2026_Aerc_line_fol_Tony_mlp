@@ -270,5 +270,12 @@ void angle_ring(int mode)
 
         if (duty > 18000)  duty = 18000;
         if (duty < -18000) duty = -18000;
+
+        /* 低速时额外限幅: 防止差速远超前进速度导致原地转圈 */
+        {
+            float duty_max = (speed_ > 10) ? speed_ * 100.0f : 1000.0f;
+            if (duty >  duty_max) duty =  duty_max;
+            if (duty < -duty_max) duty = -duty_max;
+        }
     }
 }

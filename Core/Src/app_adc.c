@@ -45,6 +45,10 @@ int   jiaozhun = 0;
 /* ---- 调试用: SPI 原始值, 供 Live Watch 观测 ---- */
 uint16_t adc_raw[SENSOR_COUNT] = {0};
 
+/* ---- 丢线计数器 ---- */
+static int lost_line_cnt = 0;       // 连续丢线的毫秒计数
+#define LOST_LINE_TIMEOUT  300      // 丢线保持修正的最大时长 (ms)
+
 /* ============================ SPI 底层 (来自参考工程) ============================ */
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -191,10 +195,28 @@ void app_adc_get(void)
             }
         }
 
-        /* 丢线记忆: 全白时保持上一次误差方向, 让车继续修正直到重新检测到线 */
+        /* 丢线处理: 短暂保持方向搜寻, 超时后清零走直线 */
         if (!line_found)
         {
-            adc_error_average[9] = adc_error_average[8];
+            lost_line_cnt++;
+            if (lost_line_cnt < LOST_LINE_TIMEOUT)
+                adc_error_average[9] = adc_error_average[8];  // 保持上次方向
+            else
+                adc_error_average[9] = 0;                     // 超时, 走直线等待重新检测
+        }
+        else
+        {
+            if (lost_line_cnt > 0)
+            {
+                /* 丢线恢复: 清除所有积累状态, 让控制链从头开始响应 */
+                duty = 0;
+                jiaosuderror = 0;
+                jiaosuderrorl = 0;
+                jiaosudutobe = 0;
+                for (int i = 0; i < 9; i++)
+                    adc_error_average[i] = 0;
+            }
+            lost_line_cnt = 0;
         }
 
         /* 归一化 */
