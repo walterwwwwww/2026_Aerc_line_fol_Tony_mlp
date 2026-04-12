@@ -165,28 +165,36 @@ void app_adc_get(void)
          *
          * 逻辑与原始完全一致, 仅将 "8" → SENSOR_HALF, "15-i" → SENSOR_COUNT-1-i
          */
+        int line_found = 0;
         for (int i = 0; i < SENSOR_HALF; i++)
         {
             int j = SENSOR_COUNT - 1 - i;   // 对称位置
             if (if_bai[i] == 0 || if_bai[j] == 0)
             {
+                line_found = 1;
                 if (if_bai[i] == 0 && if_bai[j] == 0)
                 {
-                    /* 两侧都检测到线: 偏差 = (左值-右值) × 权重 */
-                    adc_error_average[9] = (adc_test[i] - adc_test[j]) * adc_quan[SENSOR_HALF - 1 - i];
+                    /* 两侧都检测到线: 偏差 = (右值-左值) × 权重 */
+                    adc_error_average[9] = (adc_test[j] - adc_test[i]) * adc_quan[SENSOR_HALF - 1 - i];
                 }
                 else if (if_bai[i] == 0)
                 {
-                    /* 仅左侧检测到线: 大幅偏右 */
-                    adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1 - i];
+                    /* 仅左侧检测到线: 线在左边, 车应往左修 → 负误差 */
+                    adc_error_average[9] = -10.0f * adc_quan[SENSOR_HALF - 1 - i];
                 }
                 else /* if_bai[j] == 0 */
                 {
-                    /* 仅右侧检测到线: 大幅偏左 */
-                    adc_error_average[9] = -10.0f * adc_quan[SENSOR_HALF - 1 - i];
+                    /* 仅右侧检测到线: 线在右边, 车应往右修 → 正误差 */
+                    adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1 - i];
                 }
                 break;  // 只使用最外侧的有效配对
             }
+        }
+
+        /* 丢线记忆: 全白时保持上一次误差方向, 让车继续修正直到重新检测到线 */
+        if (!line_found)
+        {
+            adc_error_average[9] = adc_error_average[8];
         }
 
         /* 归一化 */

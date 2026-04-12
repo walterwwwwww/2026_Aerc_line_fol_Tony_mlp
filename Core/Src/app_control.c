@@ -16,7 +16,7 @@
 /* ---- 控制变量 (与原始完全一致) ---- */
 int run = 0;
 int time_cnt = 0;           // 原名 "time", 改名避免冲突
-int max_time = 10500;
+int max_time = 100000;
 
 int chusaidaojuli = 0, chusaidao = 0;
 
@@ -118,7 +118,7 @@ void app_get_speed(void)
         else
             jiaosudutobe = R * (speed_ + speed_) / 300.0f;
 
-        speed_ = 50;
+        speed_ = 60;
     }
 
     if (chusaidao == 1)
