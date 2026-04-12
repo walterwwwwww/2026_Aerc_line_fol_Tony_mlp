@@ -48,6 +48,7 @@ uint16_t adc_raw[SENSOR_COUNT] = {0};
 /* ---- 丢线计数器 ---- */
 static int lost_line_cnt = 0;       // 连续丢线的毫秒计数
 #define LOST_LINE_TIMEOUT  300      // 丢线保持修正的最大时长 (ms)
+#define LOST_LINE_GLITCH   30       // 短于此时长的丢线视为抖动, 不清 PID 状态
 
 /* ============================ SPI 底层 (来自参考工程) ============================ */
 
@@ -206,16 +207,25 @@ void app_adc_get(void)
         }
         else
         {
-            if (lost_line_cnt > 0)
+            if (lost_line_cnt >= LOST_LINE_GLITCH)
             {
-                /* 丢线恢复: 清除所有积累状态, 让控制链从头开始响应 */
+                /*
+                 * 真正丢线后恢复: 清除积累状态, 让控制链从头响应
+                 * 但用当前读数填充整个滑动窗口, 避免 adc_error 被稀释到 1/10
+                 */
                 duty = 0;
                 jiaosuderror = 0;
                 jiaosuderrorl = 0;
                 jiaosudutobe = 0;
                 for (int i = 0; i < 9; i++)
-                    adc_error_average[i] = 0;
+                    adc_error_average[i] = adc_error_average[9];
+
+                /* 通知 app_control: 线找回来了, 重置出赛道计数 */
+                chusaidaojuli = 0;
+                chusaidao = 0;
             }
+            /* lost_line_cnt < LOST_LINE_GLITCH 时什么都不清:
+             * 这只是振动引起的瞬间闪白, 保留所有 PID 状态, 车继续弯道修正 */
             lost_line_cnt = 0;
         }
 

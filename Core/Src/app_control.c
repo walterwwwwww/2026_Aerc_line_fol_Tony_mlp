@@ -20,7 +20,7 @@ int max_time = 100000;
 
 int chusaidaojuli = 0, chusaidao = 0;
 
-float P_tobeA = 500, D_tobeA = 1500;
+float P_tobeA = 800, D_tobeA = 1500;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机
@@ -111,6 +111,7 @@ void app_get_speed(void)
     else
     {
         chusaidaojuli = 0;
+        chusaidao = 0;          // 重新检测到线, 解除出赛道锁定
 
         float R = (P_tobeA * adc_error + D_tobeA * (adc_error - adc_error_l));
         if (run == 0)
@@ -118,7 +119,7 @@ void app_get_speed(void)
         else
             jiaosudutobe = R * (speed_ + speed_) / 300.0f;
 
-        speed_ = 80;
+        speed_ = 40;
     }
 
     if (chusaidao == 1)
