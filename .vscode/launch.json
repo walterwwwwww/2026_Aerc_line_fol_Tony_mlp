@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flash & Run",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/Debug/linfol_final.elf",
+      "configFiles": [
+        "/usr/local/share/openocd/scripts/interface/stlink.cfg",
+        "/usr/local/share/openocd/scripts/target/stm32f4x.cfg"
+      ],
+      "device": "STM32F407VG",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "Build Debug",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      }
+    },
+    {
+      "name": "Flash Only (no debug)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "build/Debug/linfol_final.elf",
+      "configFiles": [
+        "/usr/local/share/openocd/scripts/interface/stlink.cfg",
+        "/usr/local/share/openocd/scripts/target/stm32f4x.cfg"
+      ],
+      "device": "STM32F407VG",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "Build Debug",
+      "postLaunchCommands": ["monitor reset run", "quit"]
+    }
+  ]
+}
