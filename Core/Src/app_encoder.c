@@ -70,18 +70,7 @@ void app_encoder_get(void)
     int dir_l = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1);
     int dir_r = HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13);
 
-    // 注意: 左编码器计数 → 左速度, 右编码器计数 → 右速度
-    // 右编码器取反与原始代码 speedr = -encoder_get_count(TC_CH07_ENCODER) 对应
-    enc_accum_l += dir_l ? (int16_t)raw_l : -(int16_t)raw_l;
-    enc_accum_r += dir_r ? -(int16_t)raw_r : (int16_t)raw_r;
-
-    // 每 10ms 输出一次平均速度
-    enc_cnt++;
-    if (enc_cnt >= 10) {
-        speedl = enc_accum_r / 10;
-        speedr = enc_accum_l / 10;
-        enc_accum_l = 0;
-        enc_accum_r = 0;
-        enc_cnt     = 0;
-    }
+    // 与原始一致: 每 1ms 直接输出速度
+    speedl = dir_r ? -(int16_t)raw_r : (int16_t)raw_r;
+    speedr = dir_l ? (int16_t)raw_l : -(int16_t)raw_l;
 }

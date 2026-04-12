@@ -78,8 +78,8 @@ void app_START(int mode)
                 speed_ = 0;
                 jiaosudutobe = 0;
                 angle_ring(0);
-                app_motor_get(1);
-                app_motor_out(1);
+                app_motor_get(0);
+                app_motor_out(0);
             }
             else
             {
@@ -118,7 +118,7 @@ void app_get_speed(void)
         else
             jiaosudutobe = R * (speed_ + speed_) / 300.0f;
 
-        speed_ = 90;
+        speed_ = 50;
     }
 
     if (chusaidao == 1)

@@ -99,6 +99,8 @@ void app_motor_get(int mode)
         if (PIDL < -A) PIDL = -A;
 
         pwm_ += (int)PIDL;
+        if (pwm_ > C)  pwm_ = C;
+        if (pwm_ < -C) pwm_ = -C;
     }
 
     /* 叠加差速 (duty 来自角速度环) */
@@ -123,36 +125,46 @@ void app_motor_out(int i)
     {
         app_LED_set(1, 0);  // 运行指示灯灭 (表示在运行)
 
-        /* ---- 左电机 ---- */
-        int duty_l = pwml;
+        /* ---- 左电机 (CH1/CH2) ← pwmr ---- */
+        int duty_l = pwmr;
         if (duty_l < -C) duty_l = -C;
         if (duty_l >  C) duty_l =  C;
 
-        if (duty_l >= 0)
+        if (duty_l > 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PWM_SCALE(duty_l + DEAD));
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
         }
-        else
+        else if (duty_l < 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PWM_SCALE(-duty_l + DEAD));
         }
+        else  /* duty_l == 0: 不加死区, 电机停止 */
+        {
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+        }
 
-        /* ---- 右电机 ---- */
-        int duty_r = pwmr;
+        /* ---- 右电机 (CH3/CH4) ← pwml ---- */
+        int duty_r = pwml;
         if (duty_r < -C) duty_r = -C;
         if (duty_r >  C) duty_r =  C;
 
-        if (duty_r >= 0)
+        if (duty_r > 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PWM_SCALE(duty_r + DEAD));
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
         }
-        else
+        else if (duty_r < 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PWM_SCALE(-duty_r + DEAD));
+        }
+        else  /* duty_r == 0: 不加死区, 电机停止 */
+        {
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
         }
     }
     else  /* 停止 */
