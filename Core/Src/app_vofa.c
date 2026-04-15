@@ -107,17 +107,19 @@ void app_vofa_send(void)
 
     /* 写入当前缓冲区 */
     int len = snprintf(vofa_buf[vofa_buf_idx], VOFA_BUF_SIZE,
-        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
-        (int)(adc_error      * 100),  /* CH0: 偏差 ×100 */
-        (int)(jiaosudutobe   * 100),  /* CH1: 期望角速度 ×100 */
-        (int)(jiaosudu       * 100),  /* CH2: 实际角速度 ×100 */
-        (int)(jiaosuderror   * 100),  /* CH3: 角速度误差 ×100 */
-        (int)(duty),                  /* CH4: 差速 */
-        speed_,                       /* CH5: 目标速度 */
-        speedl,                       /* CH6: 左轮速度 */
-        speedr,                       /* CH7: 右轮速度 */
-        pwm_,                         /* CH8: PWM 输出 */
-        run                           /* CH9: 运行状态 */
+        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+        (int)(adc_error      * 100),  /* CH0:  偏差 ×100 */
+        (int)(jiaosudutobe   * 100),  /* CH1:  期望角速度 ×100 */
+        (int)(jiaosudu       * 100),  /* CH2:  实际角速度 ×100 */
+        (int)(jiaosuderror   * 100),  /* CH3:  角速度误差 ×100 */
+        (int)(duty),                  /* CH4:  差速 */
+        speed_,                       /* CH5:  目标速度 */
+        speedl,                       /* CH6:  左轮速度 */
+        speedr,                       /* CH7:  右轮速度 */
+        pwm_,                         /* CH8:  PWM 输出 */
+        run,                          /* CH9:  运行状态 */
+        turn_count,                   /* CH10: 第几弯 */
+        turn_forced_flag              /* CH11: 强制转向中 */
     );
 
     if (len > 0 && len < VOFA_BUF_SIZE)
@@ -138,7 +140,7 @@ void app_vofa_send(void)
 //-------------------------------------------------------------------------------------------------------------------
 void app_vofa_set_interval(int interval_ms)
 {
-    if (interval_ms < 1) interval_ms = 1;
+    if (interval_ms < 1) interval_ms = 100;
     if (interval_ms > 1000) interval_ms = 1000;
     vofa_interval = interval_ms;
 }

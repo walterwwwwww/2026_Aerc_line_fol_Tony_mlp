@@ -3,14 +3,7 @@
 
 /*
  * app_adc.h
- * 14 路 SensorBoard ADC 模块头文件
- *
- * 硬件映射:
- *   SPI2 (PB13 SCK, PB14 MISO, PB15 MOSI)
- *   CS = PD8 (软件控制)
- *
- * 通信协议:
- *   Master 发送 uint16_t 2000 → Slave 回传 14 × uint16_t
+ * 14 路 SensorBoard ADC 模块头文件 + 转弯计数
  */
 
 #include "main.h"
@@ -24,15 +17,19 @@
 #define ADC_CS_HIGH()  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, GPIO_PIN_SET)
 
 /* ---- 导出变量 ---- */
-extern uint16_t adc_raw[SENSOR_COUNT];      /* SPI 原始值, 调试用 */
+extern uint16_t adc_raw[SENSOR_COUNT];
 extern float adc_test[SENSOR_COUNT];
-extern float adc_beijing[SENSOR_COUNT];     /* 校准背景值 (min), 调试用 */
-extern float adc_xian[SENSOR_COUNT];        /* 校准线上值 (max), 调试用 */
+extern float adc_beijing[SENSOR_COUNT];
+extern float adc_xian[SENSOR_COUNT];
 extern float adc_error;
 extern float adc_error_l;
 extern float adc_error_average[10];
 extern int   if_bai[SENSOR_COUNT];
 extern int   jiaozhun;
+
+/* ---- 转弯计数导出变量 (可接 VOFA+ 观测) ---- */
+extern int   turn_count;           /* 当前第几弯 */
+extern int   turn_forced_flag;     /* 1 = 正在强制转向中 */
 
 /* ---- 函数声明 ---- */
 void  app_adc_init(void);

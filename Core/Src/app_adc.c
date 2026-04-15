@@ -2,37 +2,14 @@
 
 /*
  * app_adc.c
- * 14 路 SensorBoard ADC 模块
- *
- * 硬件:
- *   SPI2 (PB13 SCK, PB14 MISO, PB15 MOSI), CS = PD8
- *   SPI2 配置: 16-bit, Master, CPOL=0 CPHA=0
- *
- * 通信协议 (与 ir_sensor_Internal STM32F103 Slave 配合):
- *   1) 拉低 CS
- *   2) Master 发送 uint16_t 2000 (命令字)
- *   3) 短延时等待 Slave 准备 TX
- *   4) Master 接收 14 × uint16_t (28 bytes)
- *   5) 拉高 CS
- *
- * 误差计算算法 (配对扫描法):
- *   1. 14通道归一化到 0~10 (0=背景, 10=线上)
- *   2. 阈值判断黑白 (<=6 判定为白/背景)
- *   3. 从最外侧向内扫描对称配对 (i, 13-i)
- *      找到第一对有线传感器后用 adc_quan 权重计算偏差
- *   4. 10次滑动平均滤波
+ * 14 路 SensorBoard ADC 模块 + 转弯计数 + 强制转向
  */
 
 /* ---- 校准数据 ---- */
-float adc_beijing[SENSOR_COUNT];     // 背景值 (最小值, 无线时)
-float adc_xian[SENSOR_COUNT];        // 线值   (最大值, 有线时)
+float adc_beijing[SENSOR_COUNT];
+float adc_xian[SENSOR_COUNT];
 
-/*
- * 权重数组 — 从最外侧到最内侧
- * 原始 8 权重: {0.1, 0.4, 1.2, 1.9, 2.2, 2.5, 3.0, 3.5}
- * 适配 7 权重: 去掉最外侧一对 (传感器数减少), 保持内侧权重分布
- */
-float adc_quan[SENSOR_HALF] = {0.3, 1.0, 1.7, 2.1, 2.4, 2.8, 3.5};
+float adc_quan[SENSOR_HALF] = {0.0, 1.0, 1.7, 2.1, 2.4, 2.8, 3.5};
 
 /* ---- 传感器数据 ---- */
 float adc_test[SENSOR_COUNT] = {0};
@@ -42,28 +19,81 @@ float adc_error = 0, adc_error_l = 0;
 int   if_bai[SENSOR_COUNT] = {0};
 int   jiaozhun = 0;
 
-/* ---- 调试用: SPI 原始值, 供 Live Watch 观测 ---- */
 uint16_t adc_raw[SENSOR_COUNT] = {0};
 
-/* ---- 丢线计数器 ---- */
-static int lost_line_cnt = 0;       // 连续丢线的毫秒计数
-#define LOST_LINE_TIMEOUT  300      // 丢线保持修正的最大时长 (ms)
-#define LOST_LINE_GLITCH   30       // 短于此时长的丢线视为抖动, 不清 PID 状态
+/* ---- 丢线 ---- */
+static int lost_line_cnt = 0;
+#define LOST_LINE_TIMEOUT  300
+#define LOST_LINE_GLITCH   30
 
-/* ============================ SPI 底层 (来自参考工程) ============================ */
+/* ============================ 转弯计数 + 强制转向 ============================ */
 
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     从 ir_sensor_Internal 读取 14 路 ADC 数据
-// 备注信息     发送命令 2000, 等待 slave 准备, 然后接收 14 × uint16_t (28 bytes)
-//              CS = PD8
-//              不可使用 HAL_Delay (在中断中调用), 用 NOP 循环代替
-//-------------------------------------------------------------------------------------------------------------------
+/*
+ * ╔═══════════════════════════════════════════════════════════════════╗
+ * ║  使用步骤:                                                       ║
+ * ║                                                                   ║
+ * ║  第一步: 先把 force_table 留空, 跑一圈赛道                        ║
+ * ║         用 VOFA+ 看 turn_count (CH10) 确认每个弯的编号            ║
+ * ║                                                                   ║
+ * ║  第二步: 确认编号后, 在 force_table 里填入要强制转的弯:            ║
+ * ║         { 弯号, 角度 }                                            ║
+ * ║         角度正数 = 右转, 负数 = 左转                               ║
+ * ║         例: { 3, 45.0f }  表示第3弯强制右转45度                   ║
+ * ║                                                                   ║
+ * ║  第三步: 如果方向反了, 把角度取反                                  ║
+ * ║                                                                   ║
+ * ║  可调参数:                                                        ║
+ * ║    TURN_ENTRY_MS    — 外侧传感器持续多久算进弯 (防误触)           ║
+ * ║    TURN_EXIT_MS     — 外侧传感器消失多久算出弯                    ║
+ * ║    FORCE_ERROR_MAG  — 强制转向的力度 (越大转越急)                  ║
+ * ╚═══════════════════════════════════════════════════════════════════╝
+ */
+
+/* ---- 转弯检测参数 ---- */
+#define TURN_ENTRY_MS       30      /* 外侧传感器持续 30ms 才算进弯 (防抖) */
+#define TURN_EXIT_MS        100     /* 外侧传感器消失 300ms 才算出弯 */
+#define FORCE_ERROR_MAG     8.0f   /* 强制转向时的偏差幅值 (可调, 越大转越急) */
+
+/* ---- 强制转向配置表 ---- */
+typedef struct {
+    int   turn_number;      /* 第几个弯 (从1开始) */
+    float target_angle;     /* 强制转过的角度 (正=右转, 负=左转) */
+} TurnForceConfig;
+
+static const TurnForceConfig force_table[] = {
+    /* ↓↓↓ 在这里添加需要强制转向的弯道 ↓↓↓ */
+
+    // { 3,  45.0f },     /* 第3弯: 强制右转 45° */
+    // { 5, -45.0f },     /* 第5弯: 强制左转 45° */
+    // { 8,  90.0f },     /* 第8弯: 强制右转 90° */
+
+    { 5,  135.0f },     /* 第5弯: 强制右转 135° */
+    { 6,  45.0f },     /* 第6弯: 强制右转 135° */
+
+
+    /* ↑↑↑ 添加到这里 ↑↑↑ */
+};
+#define FORCE_TABLE_SIZE  (sizeof(force_table) / sizeof(force_table[0]))
+
+/* ---- 导出变量 (给 VOFA+ 观测) ---- */
+int   turn_count = 0;               /* 当前第几弯 */
+int   turn_forced_flag = 0;         /* 1 = 正在强制转向中 */
+
+/* ---- 内部状态 ---- */
+static int turn_in_bend = 0;        /* 是否在弯道中 */
+static int turn_entry_cnt = 0;      /* 进弯确认计数 */
+static int turn_exit_cnt = 0;       /* 出弯确认计数 */
+
+static float forced_start_angle = 0;
+static float forced_target_angle = 0;
+
+/* ============================ SPI 底层 ============================ */
+
 static void ir_sensor_read(uint16_t *out)
 {
     uint16_t cmd = 2000;
     ADC_CS_LOW();
     HAL_SPI_Transmit(&hspi2, (uint8_t *)&cmd, 1, 10);
-    /* 等待 slave 准备好 TX (~3 µs @ 168 MHz) */
     for (volatile int d = 0; d < 500; d++);
     HAL_SPI_Receive(&hspi2, (uint8_t *)out, 14, 10);
     ADC_CS_HIGH();
@@ -71,38 +101,33 @@ static void ir_sensor_read(uint16_t *out)
 
 /* ============================ 应用层接口 ============================ */
 
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     传感器板初始化
-//-------------------------------------------------------------------------------------------------------------------
 void app_adc_init(void)
 {
     ADC_CS_HIGH();
-
     for (int i = 0; i < SENSOR_COUNT; i++)
     {
         adc_beijing[i] = 60000.0f;
         adc_xian[i]    = 0.0f;
     }
-
-    /* 一次空读, 丢弃首次数据 */
     uint16_t dummy[SENSOR_COUNT];
     ir_sensor_read(dummy);
+
+    /* 重置转弯计数 */
+    turn_count = 0;
+    turn_forced_flag = 0;
+    turn_in_bend = 0;
+    turn_entry_cnt = 0;
+    turn_exit_cnt = 0;
 }
 
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     读取传感器 + 归一化 + 偏差计算
-// 备注信息     每 1ms 由 TIM7 中断调用
-//              算法逻辑严格对应原始 nyy_adc_get(), 仅索引范围从 16 → 14
-//-------------------------------------------------------------------------------------------------------------------
 void app_adc_get(void)
 {
     adc_error_l = adc_error;
     adc_sum = 0;
 
-    /* ---- 读取 14 路传感器原始值 ---- */
     uint16_t raw[SENSOR_COUNT];
     ir_sensor_read(raw);
-    memcpy(adc_raw, raw, sizeof(adc_raw));   /* 保存原始值供 Live Watch 观测 */
+    memcpy(adc_raw, raw, sizeof(adc_raw));
 
     for (int i = 0; i < SENSOR_COUNT; i++)
     {
@@ -110,7 +135,7 @@ void app_adc_get(void)
         adc_sum += adc_test[i];
     }
 
-    /* ---- 校准控制 (按键2 开始, 按键3 结束) ---- */
+    /* ---- 校准控制 ---- */
     if (anniu_zhuangtai[1][0] == 0 && anniu_zhuangtai[1][1] == 1 && jiaozhun == 0)
     {
         jiaozhun = 1;
@@ -121,15 +146,12 @@ void app_adc_get(void)
         }
     }
     if (anniu_zhuangtai[2][0] == 0 && anniu_zhuangtai[2][1] == 1 && jiaozhun == 1)
-    {
         jiaozhun = 0;
-    }
 
-    /* 校准 LED 指示 */
     if (jiaozhun == 1) app_LED_set(3, 1);
     if (jiaozhun == 0) app_LED_set(3, 0);
 
-    /* ---- 校准采集阶段 ---- */
+    /* ---- 校准采集 ---- */
     if (jiaozhun == 1)
     {
         for (int i = 0; i < SENSOR_COUNT; i++)
@@ -138,7 +160,7 @@ void app_adc_get(void)
             if (adc_test[i] < adc_beijing[i])  adc_beijing[i] = adc_test[i];
         }
     }
-    /* ---- 正常巡线模式: 归一化 + 偏差计算 ---- */
+    /* ==================== 正常巡线模式 ==================== */
     else if (adc_beijing[3] != 0)
     {
         /* 归一化到 0~10 */
@@ -157,82 +179,158 @@ void app_adc_get(void)
             adc_error_average[i] = adc_error_average[i + 1];
         adc_error_average[9] = 0;
 
-        /* 二值化: ≤6 为白色(无线) */
+        /* 二值化 */
         for (int i = 0; i < SENSOR_COUNT; i++)
-        {
             if_bai[i] = (adc_test[i] <= 6.0f) ? 1 : 0;
-        }
 
-        /*
-         * 偏差计算 — 从最外侧向内扫描
-         * 对称配对: sensor[i] ↔ sensor[SENSOR_COUNT-1-i]
-         *           即 (0,13), (1,12), (2,11), (3,10), (4,9), (5,8), (6,7)
-         *
-         * 逻辑与原始完全一致, 仅将 "8" → SENSOR_HALF, "15-i" → SENSOR_COUNT-1-i
-         */
+        /* 内侧第3/4/5位置传感器是否触发 (任意一侧) */
+        int outer_hit = (if_bai[2] == 0 || if_bai[3] == 0 || if_bai[4] == 0 ||
+                         if_bai[9] == 0 || if_bai[10] == 0 || if_bai[11] == 0);
+
+        /* ============================================================
+         *  1) 强制转向中 → 用陀螺仪转到目标角度, 跳过传感器扫描
+         * ============================================================ */
         int line_found = 0;
-        for (int i = 0; i < SENSOR_HALF; i++)
+
+        if (turn_forced_flag)
         {
-            int j = SENSOR_COUNT - 1 - i;   // 对称位置
-            if (if_bai[i] == 0 || if_bai[j] == 0)
+            /* 计算已转过的角度 (处理 ±180° 翻转) */
+            float turned = jiaoduz - forced_start_angle;
+            if (turned > 180.0f)  turned -= 360.0f;
+            if (turned < -180.0f) turned += 360.0f;
+
+            /* 判断是否转够 */
+            int done = 0;
+            if (forced_target_angle > 0 && turned >= forced_target_angle) done = 1;
+            if (forced_target_angle < 0 && turned <= forced_target_angle) done = 1;
+
+            if (done)
             {
+                turn_forced_flag = 0;   /* 转够了, 交还给传感器巡线 */
+            }
+            else
+            {
+                /* 还没转够: 给一个恒定偏差, 驱动车持续转弯 */
                 line_found = 1;
-                if (if_bai[i] == 0 && if_bai[j] == 0)
-                {
-                    /* 两侧都检测到线: 偏差 = (右值-左值) × 权重 */
-                    adc_error_average[9] = (adc_test[j] - adc_test[i]) * adc_quan[SENSOR_HALF - 1 - i];
-                }
-                else if (if_bai[i] == 0)
-                {
-                    /* 仅左侧检测到线: 线在左边, 车应往左修 → 负误差 */
-                    adc_error_average[9] = -10.0f * adc_quan[SENSOR_HALF - 1 - i];
-                }
-                else /* if_bai[j] == 0 */
-                {
-                    /* 仅右侧检测到线: 线在右边, 车应往右修 → 正误差 */
-                    adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1 - i];
-                }
-                break;  // 只使用最外侧的有效配对
+                float dir = (forced_target_angle > 0) ? 1.0f : -1.0f;
+                adc_error_average[9] = dir * FORCE_ERROR_MAG * adc_quan[SENSOR_HALF - 1];
             }
         }
 
-        /* 丢线处理: 短暂保持方向搜寻, 超时后清零走直线 */
+        /* ============================================================
+         *  2) 正常传感器扫描 (非强制转向时)
+         * ============================================================ */
+        if (!turn_forced_flag && !line_found)
+        {
+            /* T型路口: 两侧最外同时为黑 → 强制右转 */
+            if (if_bai[0] == 0 && if_bai[SENSOR_COUNT - 1] == 0)
+            {
+                line_found = 1;
+                adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1];
+            }
+            else
+            {
+                for (int i = 0; i < SENSOR_HALF; i++)
+                {
+                    int j = SENSOR_COUNT - 1 - i;
+                    if (if_bai[i] == 0 || if_bai[j] == 0)
+                    {
+                        line_found = 1;
+                        if (if_bai[i] == 0 && if_bai[j] == 0)
+                            adc_error_average[9] = (adc_test[j] - adc_test[i]) * adc_quan[SENSOR_HALF - 1 - i];
+                        else if (if_bai[i] == 0)
+                            adc_error_average[9] = -10.0f * adc_quan[SENSOR_HALF - 1 - i];
+                        else
+                            adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1 - i];
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* ============================================================
+         *  3) 转弯检测 + 计数 (每周期都跑, 不管是否强制)
+         * ============================================================ */
+        if (!turn_in_bend)
+        {
+            /* ---- 未在弯中: 检测进弯 ---- */
+            if (outer_hit)
+            {
+                turn_entry_cnt++;
+                if (turn_entry_cnt >= TURN_ENTRY_MS)
+                {
+                    /* 确认进弯, 计数 +1 */
+                    turn_in_bend = 1;
+                    turn_entry_cnt = 0;
+                    turn_exit_cnt = 0;
+                    turn_count++;
+
+                    /* 查表: 这个弯是否需要强制转向 */
+                    for (int t = 0; t < (int)FORCE_TABLE_SIZE; t++)
+                    {
+                        if (force_table[t].turn_number == turn_count)
+                        {
+                            turn_forced_flag = 1;
+                            forced_start_angle = jiaoduz;
+                            forced_target_angle = force_table[t].target_angle;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                turn_entry_cnt = 0;
+            }
+        }
+        else
+        {
+            /* ---- 在弯中: 检测出弯 ---- */
+            if (!outer_hit && !turn_forced_flag)
+            {
+                turn_exit_cnt++;
+                if (turn_exit_cnt >= TURN_EXIT_MS)
+                {
+                    turn_in_bend = 0;
+                    turn_exit_cnt = 0;
+                }
+            }
+            else
+            {
+                turn_exit_cnt = 0;
+            }
+        }
+
+        /* ============================================================
+         *  4) 丢线处理
+         * ============================================================ */
         if (!line_found)
         {
             lost_line_cnt++;
             if (lost_line_cnt < LOST_LINE_TIMEOUT)
-                adc_error_average[9] = adc_error_average[8];  // 保持上次方向
+                adc_error_average[9] = adc_error_average[8];
             else
-                adc_error_average[9] = 0;                     // 超时, 走直线等待重新检测
+                adc_error_average[9] = 0;
         }
         else
         {
             if (lost_line_cnt >= LOST_LINE_GLITCH)
             {
-                /*
-                 * 真正丢线后恢复: 清除积累状态, 让控制链从头响应
-                 * 但用当前读数填充整个滑动窗口, 避免 adc_error 被稀释到 1/10
-                 */
                 duty = 0;
                 jiaosuderror = 0;
                 jiaosuderrorl = 0;
                 jiaosudutobe = 0;
                 for (int i = 0; i < 9; i++)
                     adc_error_average[i] = adc_error_average[9];
-
-                /* 通知 app_control: 线找回来了, 重置出赛道计数 */
                 chusaidaojuli = 0;
                 chusaidao = 0;
             }
-            /* lost_line_cnt < LOST_LINE_GLITCH 时什么都不清:
-             * 这只是振动引起的瞬间闪白, 保留所有 PID 状态, 车继续弯道修正 */
             lost_line_cnt = 0;
+
+            adc_error_average[9] /= 14.0f;
         }
 
-        /* 归一化 */
-        adc_error_average[9] /= 14.0f;
-
-        /* 计算 10 次滑动平均 */
+        /* 10 次滑动平均 */
         for (int i = 0; i < 10; i++)
         {
             adc_error += adc_error_average[i] / 10.0f;
