@@ -94,7 +94,11 @@ static void ir_sensor_read(uint16_t *out)
     uint16_t cmd = 2000;
     ADC_CS_LOW();
     HAL_SPI_Transmit(&hspi2, (uint8_t *)&cmd, 1, 10);
-    for (volatile int d = 0; d < 500; d++);
+
+    /* 给从机留足够时间: 进 ISR + 快照 adc_buf + 装填 TX DR
+     * 72MHz 下 ~3000 次空循环 ≈ 40µs, 对你这个轮询率完全不是瓶颈 */
+    for (volatile int d = 0; d < 3000; d++);
+
     HAL_SPI_Receive(&hspi2, (uint8_t *)out, 14, 10);
     ADC_CS_HIGH();
 }

@@ -64,7 +64,7 @@ void app_motor_init(void)
 
     /* 启动风扇 PWM (TIM3_CH4, PB1) */
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 0);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 1000);
 
     /* 蜂鸣器 (TIM3_CH3, PB0) — 初始关闭 */
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
@@ -182,26 +182,39 @@ void app_motor_out(int i)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     风扇控制
-// 参数说明     k: 1=启动(渐加速), 0=关闭
-// 备注信息     TIM3_CH4 (PB1), Period=19999
-//              原始最大占空比 fengli_max=3000/10000=30%
-//              TIM3 ARR=19999, 等效 30% = 6000
+// 函数简介     负压风扇控制 (电调驱动无刷电机)
+// 参数说明     k: 1=启动, 0=关闭
+// 备注信息     TIM3_CH4 (PB1), PWM 周期由 TIM3 配置决定 (标准舵机/电调协议: 1000~2000μs)
+//
+//              启动时序 (电调必须按此顺序才能解锁并运转):
+//                1) 1000μs  保持 1 秒 — 最低油门, 电调解锁 / 初始化
+//                2) 1500μs  保持 3 秒 — 中油门, 电机开始运转并稳定
+//                3) 1800μs          — 目标工作油门
 //-------------------------------------------------------------------------------------------------------------------
+#define FAN_THROTTLE_MIN     1000    // 最低油门 (电调解锁)
+#define FAN_THROTTLE_MID     1500    // 中油门   (过渡启动)
+#define FAN_THROTTLE_RUN     1800    // 工作油门 (目标转速)
+
 void app_fengshan(int k)
 {
     if (k == 1)
     {
-        /* 渐进启动 (与原始行为一致) */
-        for (int i = 0; i < 6000; i++)
-        {
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, i);
-            /* 简易延时 ~4ms (非精确, 原始使用 system_delay_ms(4)) */
-            HAL_Delay(4);
-        }
+        /* ---- 第一步: 最低油门 1000μs, 保持 1 秒 ---- */
+        /*   让电调检测到最低油门信号并完成解锁初始化       */
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, FAN_THROTTLE_MIN);
+        HAL_Delay(1000);
+
+        /* ---- 第二步: 中油门 1500μs, 保持 3 秒 ---- */
+        /*   电机起转并稳定, 为进入工作转速做准备          */
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, FAN_THROTTLE_MID);
+        HAL_Delay(3000);
+
+        /* ---- 第三步: 切到目标油门 1800μs, 风扇进入工作状态 ---- */
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, FAN_THROTTLE_RUN);
     }
     else
     {
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 0);
+        /* 关闭时回到最低油门, 不要给 0 (给 0 电调会丢信号并重新进入解锁流程) */
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, FAN_THROTTLE_MIN);
     }
 }

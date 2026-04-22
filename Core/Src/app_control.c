@@ -119,7 +119,7 @@ void app_get_speed(void)
         else
             jiaosudutobe = R * (speed_ + speed_) / 300.0f;
 
-        speed_ = 70;
+        speed_ =40;
     }
 
     if (chusaidao == 1)
