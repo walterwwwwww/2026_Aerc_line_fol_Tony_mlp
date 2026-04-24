@@ -11,6 +11,11 @@
  *   nyy_motor_out()  → app_motor_out()
  *   fengshan()       → app_fengshan()
  *   全局变量名 time  → time_cnt (避免与 <time.h> 冲突)
+ *
+ * ⚠️ 为支持 VOFA+ 在线调参的变动:
+ *   原 app_get_speed() 里 "speed_ = 40" 硬编码
+ *   改成 "speed_ = base_speed", base_speed 是新增全局变量 (默认 40)
+ *   这样 VOFA+ 可通过 "base_speed=60" 在线改巡航速度
  */
 
 /* ---- 控制变量 (与原始完全一致) ---- */
@@ -20,7 +25,10 @@ int max_time = 100000;
 
 int chusaidaojuli = 0, chusaidao = 0;
 
-float P_tobeA = 800, D_tobeA = 1500;
+float P_tobeA = 800, D_tobeA = 8000;
+
+/* ⚠️ 新增: 基础巡航速度 (原 app_get_speed() 里硬编码的 40, 改成变量以支持 VOFA 在线调整) */
+int base_speed = 40;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机
@@ -98,6 +106,7 @@ void app_START(int mode)
 // 备注信息     算法与原始 get_speed() 完全一致
 //              adc_error → PD 控制 → jiaosudutobe (期望角速度)
 //              出赛道检测: adc_error 持续为 0 → 停车
+//              ⚠️ 变动: 原 "speed_ = 40" 改成 "speed_ = base_speed" (便于 VOFA 调速)
 //-------------------------------------------------------------------------------------------------------------------
 void app_get_speed(void)
 {
@@ -119,7 +128,7 @@ void app_get_speed(void)
         else
             jiaosudutobe = R * (speed_ + speed_) / 300.0f;
 
-        speed_ =40;
+        speed_ = base_speed;   /* 原 speed_=40, 改用全局 base_speed (VOFA 可调) */
     }
 
     if (chusaidao == 1)
