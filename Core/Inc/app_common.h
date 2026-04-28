@@ -36,5 +36,4 @@ extern UART_HandleTypeDef huart3;  // 超声波串口 (PB10/PB11)
 #include "app_control.h"
 #include "app_vofa.h"       /* VOFA+ 数据发送 (DMA) */
 
-
 #endif /* APP_COMMON_H */

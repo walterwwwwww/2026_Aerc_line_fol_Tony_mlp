@@ -12,6 +12,11 @@
  *   - ±2000°/s 灵敏度 = 16.4 LSB/(°/s)
  *
  * 硬件: SPI1 (PB3/PB4/PB5), CS = PD7
+ *
+ * ⚠️ 相比原版的变动 (为支持 VOFA+ 在线调参):
+ *   原 angle_ring() 中硬编码 "duty > 18000" / "duty < -18000"
+ *   改成使用全局变量 gyro_duty_limit (默认 18000)
+ *   VOFA+ 可以运行时修改, 例如发 "duty_limit=12000" 限制转向幅度
  */
 
 /* ---- 陀螺仪变量 (与原始完全一致) ---- */
@@ -35,6 +40,9 @@ float jiaosuderrorl = 0, jiaosuderror = 0;
 float duty = 0;
 float jiaosudutobe = 0;
 float P_A = 15, I_A = 0.5f;
+
+/* ⚠️ 新增: 角速度环 duty 输出限幅 (原硬编码 18000, 改成变量以支持 VOFA 调整) */
+int gyro_duty_limit = 18000;
 
 /* ============================ ICM-20948 寄存器定义 ============================ */
 
@@ -251,6 +259,7 @@ void path_menmory(void)
 // 函数简介     角速度环 (转向控制)
 // 参数说明     mode: 0=关闭, 1=角速度环模式
 // 备注信息     算法与原始 angle_ring() 完全一致
+//              ⚠️ 变动: 原硬编码 "duty > 18000" 改用变量 gyro_duty_limit
 //-------------------------------------------------------------------------------------------------------------------
 void angle_ring(int mode)
 {
@@ -268,8 +277,9 @@ void angle_ring(int mode)
         else
             duty += (P_A * (jiaosuderror - jiaosuderrorl) + I_A * jiaosuderror) * speed_ / 40.0f;
 
-        if (duty > 18000)  duty = 18000;
-        if (duty < -18000) duty = -18000;
+        /* 全局 duty 限幅 (原硬编码 18000, 现为可调 gyro_duty_limit) */
+        if (duty >  gyro_duty_limit) duty =  gyro_duty_limit;
+        if (duty < -gyro_duty_limit) duty = -gyro_duty_limit;
 
         /* 低速时额外限幅: 防止差速远超前进速度导致原地转圈 */
         {

@@ -25,10 +25,10 @@ int max_time = 100000;
 
 int chusaidaojuli = 0, chusaidao = 0;
 
-float P_tobeA = 800, D_tobeA = 8000;
+float P_tobeA = 800, D_tobeA = 1500;
 
 /* ⚠️ 新增: 基础巡航速度 (原 app_get_speed() 里硬编码的 40, 改成变量以支持 VOFA 在线调整) */
-int base_speed = 40;
+int base_speed = 30;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机

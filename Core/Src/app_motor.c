@@ -20,6 +20,12 @@
  * 死区补偿:
  *   原始代码在 pwm 输出时加 700 的死区补偿
  *   缩放后约 588, 此处使用 PWM_SCALE(700)
+ *
+ * ⚠️ 相比原版的变动 (为支持 VOFA+ 在线调参):
+ *   原 #define A    (1000)   →  int motor_pid_limit = 1000;   PID 增量限幅
+ *   原 #define C    (9300)   →  int motor_pwm_limit = 9300;   占空比限幅
+ *   原 #define DEAD (700)    →  int motor_dead_zone = 700;    死区补偿
+ *   宏改成全局变量后, VOFA+ 可以运行时修改, 不用烧录
  */
 
 /* ---- 速度环变量 (与原始完全一致) ---- */
@@ -38,10 +44,14 @@ float PIDR = 0, dr = 0;
 
 int pwml = 0, pwmr = 0, pwm_ = 0;
 
-/* ---- 限幅常量 (保持原始值, 输出时缩放) ---- */
-#define A       (1000)      // PID 增量限幅
-#define C       (9300)      // 占空比限幅
-#define DEAD    (700)       // 死区补偿
+/* ---- 限幅参数 (原为 #define, 改成变量以支持 VOFA 在线调整) ----
+ *   motor_pid_limit — PID 每步增量限幅 (原宏 A)
+ *   motor_pwm_limit — 占空比最大值    (原宏 C)
+ *   motor_dead_zone — 死区补偿        (原宏 DEAD)
+ */
+int motor_pid_limit = 1000;
+int motor_pwm_limit = 9300;
+int motor_dead_zone = 700;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     电机 PWM 初始化
@@ -77,6 +87,7 @@ void app_motor_init(void)
 // 函数简介     速度环 PID 计算
 // 参数说明     mode: 0=关闭速度环, 1=打开速度环
 // 备注信息     算法与原始 nyy_motor_get() 完全一致
+//              ⚠️ 变动: 原来 #define A/C 的限幅改用变量 motor_pid_limit / motor_pwm_limit
 //-------------------------------------------------------------------------------------------------------------------
 void app_motor_get(int mode)
 {
@@ -95,12 +106,12 @@ void app_motor_get(int mode)
         /* 左右轮 PID */
         PIDL = (KP_L * L_err[0] + KI_L * L_sum + KD_L * (L_err[0] - L_err[1])) / 2;
 
-        if (PIDL > A)  PIDL = A;
-        if (PIDL < -A) PIDL = -A;
+        if (PIDL >  motor_pid_limit) PIDL =  motor_pid_limit;
+        if (PIDL < -motor_pid_limit) PIDL = -motor_pid_limit;
 
         pwm_ += (int)PIDL;
-        if (pwm_ > C)  pwm_ = C;
-        if (pwm_ < -C) pwm_ = -C;
+        if (pwm_ >  motor_pwm_limit) pwm_ =  motor_pwm_limit;
+        if (pwm_ < -motor_pwm_limit) pwm_ = -motor_pwm_limit;
     }
 
     /* 叠加差速 (duty 来自角速度环) */
@@ -108,16 +119,17 @@ void app_motor_get(int mode)
     pwmr = (int)(pwm_ + duty);
 
     /* 占空比限幅 */
-    if (pwml < -C) pwml = -C;
-    if (pwml >  C) pwml =  C;
-    if (pwmr < -C) pwmr = -C;
-    if (pwmr >  C) pwmr =  C;
+    if (pwml < -motor_pwm_limit) pwml = -motor_pwm_limit;
+    if (pwml >  motor_pwm_limit) pwml =  motor_pwm_limit;
+    if (pwmr < -motor_pwm_limit) pwmr = -motor_pwm_limit;
+    if (pwmr >  motor_pwm_limit) pwmr =  motor_pwm_limit;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     电机 PWM 输出
 // 参数说明     i: 1=正常输出, 0=全部停止
 // 备注信息     所有 duty 值通过 PWM_SCALE 宏缩放到 TIM1 的 0~8399 范围
+//              ⚠️ 变动: 原 #define DEAD/C 改用变量 motor_dead_zone / motor_pwm_limit
 //-------------------------------------------------------------------------------------------------------------------
 void app_motor_out(int i)
 {
@@ -127,18 +139,18 @@ void app_motor_out(int i)
 
         /* ---- 左电机 (CH1/CH2) ← pwmr ---- */
         int duty_l = pwmr;
-        if (duty_l < -C) duty_l = -C;
-        if (duty_l >  C) duty_l =  C;
+        if (duty_l < -motor_pwm_limit) duty_l = -motor_pwm_limit;
+        if (duty_l >  motor_pwm_limit) duty_l =  motor_pwm_limit;
 
         if (duty_l > 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PWM_SCALE(duty_l + DEAD));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PWM_SCALE(duty_l + motor_dead_zone));
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
         }
         else if (duty_l < 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PWM_SCALE(-duty_l + DEAD));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PWM_SCALE(-duty_l + motor_dead_zone));
         }
         else  /* duty_l == 0: 不加死区, 电机停止 */
         {
@@ -148,18 +160,18 @@ void app_motor_out(int i)
 
         /* ---- 右电机 (CH3/CH4) ← pwml ---- */
         int duty_r = pwml;
-        if (duty_r < -C) duty_r = -C;
-        if (duty_r >  C) duty_r =  C;
+        if (duty_r < -motor_pwm_limit) duty_r = -motor_pwm_limit;
+        if (duty_r >  motor_pwm_limit) duty_r =  motor_pwm_limit;
 
         if (duty_r > 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PWM_SCALE(duty_r + DEAD));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PWM_SCALE(duty_r + motor_dead_zone));
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
         }
         else if (duty_r < 0)
         {
             __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PWM_SCALE(-duty_r + DEAD));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PWM_SCALE(-duty_r + motor_dead_zone));
         }
         else  /* duty_r == 0: 不加死区, 电机停止 */
         {

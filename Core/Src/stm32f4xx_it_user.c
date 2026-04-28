@@ -32,20 +32,31 @@
  *   4) 按键读取
  *   5) 主状态机
  *   6) VOFA+ 数据发送 (DMA, 不阻塞)
+ *
+ * ⚠️ 相比上一版的变动:
+ *   移除了 app_pidtest_tick() / app_pidtest_is_active() 调用
+ *   直接调 app_START(0) 进入巡线状态机
+ *
+ *   PID 参数调整现在通过 VOFA+ 命令面板实现:
+ *     - USART2 IDLE 中断 (stm32f4xx_it.c::USART2_IRQHandler) 收 ASCII 命令
+ *     - 主循环 (main.c::while(1)) 的 app_vofa_cmd_process() 解析并修改参数
+ *   本中断回调里完全不用管 VOFA 命令, 只专注 1ms 控制循环
  */
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM7)
     {
-        /* ---- 与原始 pit0_ch1_isr() 完全对应 ---- */
+        /* ---- 传感器读取 ---- */
+        app_encoder_get();      // 编码器 → speedl, speedr
+        app_gyro_get();         // 陀螺仪 → jiaosudu, jiaoduz
+        app_adc_get();          // ADC 传感器 → adc_error
+        app_get_button();       // 按键 → anniu_zhuangtai
 
-        app_encoder_get();      // 编码器 (原 nyy_encoder_get)
-        app_gyro_get();         // 陀螺仪 (原 nyy_gyro_get)
-        app_adc_get();          // ADC 传感器 (原 nyy_adc_get)
-        app_get_button();       // 按键 (原 nyy_get_anniu)
+        /* ---- 主控制: 正常巡线 (BTN1 启停) ---- */
+        app_START(0);
 
-        app_START(0);           // 主状态机 (原 START(0))
-
-        app_vofa_send();        // VOFA+ DMA 发送 (内部自动分频, 不阻塞)
+        /* ---- 数据上传 ---- */
+        app_vofa_send();        // VOFA+ TX DMA, 非阻塞
     }
 }

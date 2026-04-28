@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "app_common.h"
+#include "app_vofa_cmd.h"   /* ⚠️ 新增: VOFA+ 在线调参模块 */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -105,9 +106,17 @@ int main(void)
   app_encoder_init();
   app_motor_init();
   app_gyro_init();
-  // app_fengshan(1);   // 风扇, 如需要取消注释 (~24s 渐加速)
+  app_fengshan(1);     // 风扇, 如需要取消注释 (~24s 渐加速)
   app_adc_init();
-  app_vofa_init();     // VOFA+ DMA 初始化 (必须在 MX_DMA_Init 和 MX_USART2_UART_Init 之后)
+  app_vofa_init();        // VOFA+ TX DMA 初始化 (发送 12 通道遥测)
+                          //   必须在 MX_DMA_Init 和 MX_USART2_UART_Init 之后
+  app_vofa_cmd_init();    // ⚠️ 新增: VOFA+ RX DMA + IDLE 中断初始化
+                          //   在 app_vofa_init 之后, 复用同一个 USART2
+                          //   支持运行时通过 VOFA+ 命令面板修改 PID 参数
+
+  // app_pidtest_init();  // ⚠️ 已移除: 原 PID 测试模式不再使用,
+                          //   改由 VOFA+ 在线调参 (app_vofa_cmd) 取代
+
   HAL_TIM_Base_Start_IT(&htim7);  // 启动 1ms 控制中断!
   /* USER CODE END 2 */
 
@@ -119,12 +128,21 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     /*
-     * ⚠️ printf 已注释: USART2 现在由 VOFA+ DMA 独占
+     * ⚠️ printf 已注释: USART2 现在由 VOFA+ 独占 (TX 发波形, RX 收命令)
      *    printf 的阻塞发送会和 DMA 冲突, 导致数据错乱
-     *    所有调试数据都通过 VOFA+ 10 个通道查看
+     *    所有调试数据都通过 VOFA+ 12 个通道查看
+     *    所有 PID 参数修改通过 VOFA+ 命令面板发 "NAME=VALUE\n"
      */
     // printf("%f,%f\r\n", jiaosudutobe, jiaosudu);
-    HAL_Delay(10);
+
+    /*
+     * 解析 VOFA+ 接收到的参数调整命令
+     *   - strtof / snprintf 太慢, 不适合放在 TIM7 1ms 中断里
+     *   - 放在主循环, 响应延迟 <10ms 足够用
+     */
+    app_vofa_cmd_process();
+
+    HAL_Delay(2);
   }
   /* USER CODE END 3 */
 }
@@ -177,8 +195,8 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 /*
  * ⚠️ _write / printf 重定向已移除
- *    USART2 现在由 VOFA+ DMA 独占使用
- *    如果需要恢复 printf, 必须先关闭 VOFA (注释掉 app_vofa_init 和 app_vofa_send)
+ *    USART2 现在由 VOFA+ 独占使用 (TX 发波形 + RX 收命令)
+ *    如果需要恢复 printf, 必须先关闭 VOFA (注释掉 app_vofa_init / app_vofa_cmd_init / app_vofa_send)
  */
 /*
 #ifdef __GNUC__

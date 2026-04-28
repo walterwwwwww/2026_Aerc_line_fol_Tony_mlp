@@ -22,6 +22,11 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+/*
+ * ⚠️ VOFA+ 命令接收 — 在 USART2_IRQHandler 里检测 IDLE 标志
+ *    详见 app_vofa_cmd.c 的 app_vofa_cmd_on_uart_irq()
+ */
+extern void app_vofa_cmd_on_uart_irq(void);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -294,11 +299,16 @@ void SPI2_IRQHandler(void)
 
 /**
   * @brief This function handles USART2 global interrupt.
+  *
+  * ⚠️ 修改: 先处理 IDLE 中断 (VOFA 命令接收), 再交给 HAL
+  *        IDLE 中断由 app_vofa_cmd_init() 里使能
+  *        如果 VOFA 收到一串字符 + \n, 线空闲时触发 IDLE,
+  *        我们把 DMA 缓冲里的新数据拷到行缓冲, 组装成完整命令
   */
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
-
+  app_vofa_cmd_on_uart_irq();   /* ⚠️ 新增: 先检查并处理 IDLE 标志 */
   /* USER CODE END USART2_IRQn 0 */
   HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
