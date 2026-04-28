@@ -1,62 +1,64 @@
 /*
  * stm32f4xx_it_user.c
  *
- * ====== 本文件不是独立源文件! ======
- * 本文件包含需要插入到 CubeMX 自动生成的 stm32f4xx_it.c 中的用户代码
+ * ====== 速度环 PID 测试专用版本 ======
  *
- * ====== 方法一: 在 stm32f4xx_it.c 中添加回调 (推荐) ======
- * 在 stm32f4xx_it.c 的 USER CODE BEGIN Includes 中添加:
- *   #include "app_common.h"
+ * 替换原版 (跑 app_START 巡线状态机) 的 TIM7 ISR,
+ * 改成只跑速度闭环, 配合 main.c 的速度环测试代码使用
  *
- * 然后在 stm32f4xx_it.c 的 USER CODE BEGIN 1 中添加下面的回调函数
+ * 1ms 中断里干这几件事:
+ *   1) app_encoder_get()  - 读编码器, 更新 speedl/speedr
+ *   2) duty = 0           - 强制关闭转向 (不调 angle_ring)
+ *   3) speed_test_active 为 1 时:
+ *        speed_ = base_speed              (目标速度, 可被 VOFA 实时修改)
+ *        app_motor_get(1)                  (速度环 PID, 算出 pwm_)
+ *        app_motor_out(1)                  (输出到 H 桥)
+ *      为 0 时:
+ *        speed_ = 0
+ *        app_motor_get(0)                  (复位 pwm_ = 0)
+ *        app_motor_out(0)                  (强停)
+ *   4) app_vofa_send()    - 把数据 DMA 给 VOFA+
  *
- * ====== 方法二: 在任意 .c 文件中实现回调 (更灵活) ======
- * HAL_TIM_PeriodElapsedCallback 是弱符号函数,
- * 可以在任意 .c 文件中实现, 只要整个工程中只有一个实现即可
- * 直接将下面的函数放到 main.c 的 USER CODE BEGIN 4 区域也可以
+ * 不调用:
+ *   - app_gyro_get        (没初始化, 调了会卡死在 SPI 等待)
+ *   - app_adc_get         (没初始化)
+ *   - app_get_button      (BTN1/BTN3 在主循环直接 HAL_GPIO_ReadPin)
+ *   - app_START           (整个巡线状态机不要)
  */
 
 #include "app_common.h"
 
-/*
- * TIM7 周期中断回调 — 1ms 控制循环
- *
- * 对应原始工程中 cm4_isr.c 的 pit0_ch1_isr()
- * 原始 PIT_CH1 配置: pit_init(PIT_CH1, 1000) → 1000us = 1ms
- * STM32 TIM7 配置: Prescaler=83, Period=999 → 84MHz/84/1000 = 1kHz = 1ms
- *
- * 调用顺序与原始完全一致:
- *   1) 编码器读取
- *   2) 陀螺仪读取
- *   3) ADC 传感器读取
- *   4) 按键读取
- *   5) 主状态机
- *   6) VOFA+ 数据发送 (DMA, 不阻塞)
- *
- * ⚠️ 相比上一版的变动:
- *   移除了 app_pidtest_tick() / app_pidtest_is_active() 调用
- *   直接调 app_START(0) 进入巡线状态机
- *
- *   PID 参数调整现在通过 VOFA+ 命令面板实现:
- *     - USART2 IDLE 中断 (stm32f4xx_it.c::USART2_IRQHandler) 收 ASCII 命令
- *     - 主循环 (main.c::while(1)) 的 app_vofa_cmd_process() 解析并修改参数
- *   本中断回调里完全不用管 VOFA 命令, 只专注 1ms 控制循环
- */
+/* main.c 里定义 */
+extern volatile int speed_test_active;
+
+/* app_control.c 里定义, 用作目标速度 (VOFA 可在线改 base_speed=xx) */
+extern int base_speed;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM7)
     {
-        /* ---- 传感器读取 ---- */
-        app_encoder_get();      // 编码器 → speedl, speedr
-        app_gyro_get();         // 陀螺仪 → jiaosudu, jiaoduz
-        app_adc_get();          // ADC 传感器 → adc_error
-        app_get_button();       // 按键 → anniu_zhuangtai
+        /* ---- 1) 读编码器 ---- */
+        app_encoder_get();
 
-        /* ---- 主控制: 正常巡线 (BTN1 启停) ---- */
-        app_START(0);
+        /* ---- 2) 强制无转向 (两轮命令值相同) ---- */
+        duty = 0;
 
-        /* ---- 数据上传 ---- */
-        app_vofa_send();        // VOFA+ TX DMA, 非阻塞
+        /* ---- 3) 速度环 ---- */
+        if (speed_test_active)
+        {
+            speed_ = base_speed;        // 目标速度, VOFA 可改
+            app_motor_get(1);           // 速度 PID
+            app_motor_out(1);           // 输出
+        }
+        else
+        {
+            speed_ = 0;
+            app_motor_get(0);           // 复位 pwm_ = 0
+            app_motor_out(0);           // 全停
+        }
+
+        /* ---- 4) 上传 VOFA ---- */
+        app_vofa_send();
     }
 }

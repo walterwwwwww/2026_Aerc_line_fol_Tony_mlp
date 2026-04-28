@@ -42,7 +42,7 @@ float jiaosudutobe = 0;
 float P_A = 15, I_A = 0.5f;
 
 /* ⚠️ 新增: 角速度环 duty 输出限幅 (原硬编码 18000, 改成变量以支持 VOFA 调整) */
-int gyro_duty_limit = 18000;
+int gyro_duty_limit = 25000;
 
 /* ============================ ICM-20948 寄存器定义 ============================ */
 

@@ -9,7 +9,7 @@
 float adc_beijing[SENSOR_COUNT];
 float adc_xian[SENSOR_COUNT];
 
-float adc_quan[SENSOR_HALF] = {0, 1.0, 1.7, 2.1, 2.4, 2.8, 3.5};
+float adc_quan[SENSOR_HALF] = {0.5, 1.0, 1.7, 2.1, 2.4, 2.8, 3.5};
 
 /* ---- 传感器数据 ---- */
 float adc_test[SENSOR_COUNT] = {0};

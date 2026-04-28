@@ -28,7 +28,7 @@ int chusaidaojuli = 0, chusaidao = 0;
 float P_tobeA = 800, D_tobeA = 1500;
 
 /* ⚠️ 新增: 基础巡航速度 (原 app_get_speed() 里硬编码的 40, 改成变量以支持 VOFA 在线调整) */
-int base_speed = 30;
+int base_speed =30;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机
@@ -122,7 +122,11 @@ void app_get_speed(void)
         chusaidaojuli = 0;
         chusaidao = 0;          // 重新检测到线, 解除出赛道锁定
 
-        float R = (P_tobeA * adc_error + D_tobeA * (adc_error - adc_error_l));
+        /* ⚠️ JITTER FIX: D 项差分加死区, 消除传感器量化噪声引起的直线抖
+         *   |Δerror| < 0.05 视为噪声, 丢弃 */
+        float derr = adc_error - adc_error_l;
+        if (fabsf(derr) < 0.05f) derr = 0.0f;
+        float R = (P_tobeA * adc_error + D_tobeA * derr);
         if (run == 0)
             jiaosudutobe = R * (speedl + speedr) / 300.0f;
         else
