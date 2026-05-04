@@ -9,7 +9,7 @@
 float adc_beijing[SENSOR_COUNT];
 float adc_xian[SENSOR_COUNT];
 
-float adc_quan[SENSOR_HALF] = {0, 1.0, 1.7, 2.1, 2.4, 2.8, 3.5};
+float adc_quan[SENSOR_HALF] = {0.0, 0.3, 1.7, 2.1, 2.4, 2.8, 3.5};
 
 /* ---- 传感器数据 ---- */
 float adc_test[SENSOR_COUNT] = {0};
@@ -67,8 +67,8 @@ static const TurnForceConfig force_table[] = {
     // { 5, -45.0f },     /* 第5弯: 强制左转 45° */
     // { 8,  90.0f },     /* 第8弯: 强制右转 90° */
 
-    { 5,  135.0f },     /* 第5弯: 强制右转 135° */
-    { 6,  45.0f },     /* 第6弯: 强制右转 135° */
+    // { 5,  135.0f },     /* 第5弯: 强制右转 135° */
+    // { 6,  45.0f },     /* 第6弯: 强制右转 135° */
 
 
     /* ↑↑↑ 添加到这里 ↑↑↑ */

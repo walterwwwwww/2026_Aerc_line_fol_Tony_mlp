@@ -28,7 +28,7 @@ int chusaidaojuli = 0, chusaidao = 0;
 float P_tobeA = 800, D_tobeA = 1500;
 
 /* ⚠️ 新增: 基础巡航速度 (原 app_get_speed() 里硬编码的 40, 改成变量以支持 VOFA 在线调整) */
-int base_speed = 30;
+int base_speed = 35;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机
@@ -50,7 +50,7 @@ void app_START(int mode)
             run = 1;
             time_cnt = 0;
             chusaidao = 0;
-            // app_fengshan(1);  // 暂时不用重新启动风扇 (与原始注释一致)
+            app_fengshan(1);  // 暂时不用重新启动风扇 (与原始注释一致)
         }
 
         if (run == 1)   /* ---- 运行中 ---- */
@@ -135,6 +135,6 @@ void app_get_speed(void)
     {
         speed_ = 0;
         jiaosudutobe = 0;
-        // app_fengshan(0);  // 与原始注释一致
+        app_fengshan(0);  // 与原始注释一致
     }
 }

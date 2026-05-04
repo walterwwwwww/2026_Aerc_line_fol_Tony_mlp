@@ -71,6 +71,6 @@ void app_encoder_get(void)
     int dir_r = HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13);
 
     // 与原始一致: 每 1ms 直接输出速度
-    speedl = dir_r ? -(int16_t)(raw_r * 2) : (int16_t)(raw_r * 2);
-    speedr = dir_l ? (int16_t)raw_l : -(int16_t)raw_l;
+    speedl = dir_r ? (int16_t)raw_r : - (int16_t)raw_r;
+    speedr = dir_l ? -(int16_t)raw_l : (int16_t)raw_l;
 }
