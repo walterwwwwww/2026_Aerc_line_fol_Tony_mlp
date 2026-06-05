@@ -207,6 +207,67 @@ void app_motor_out(int i)
 #define FAN_THROTTLE_MID     1500    // 中油门   (过渡启动)
 #define FAN_THROTTLE_RUN     1800    // 工作油门 (目标转速)
 
+/* ---- 安装测试 ---- */
+#define MOTOR_TEST_STEP_MS  2000   /* 每步持续时间 (ms) */
+#define MOTOR_TEST_PWM      2000   /* 测试占空比 (~24%), 足以转动又不会飞 */
+
+static int motor_test_cnt = 0;
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数简介     电机安装测试 — 依次驱动四路 H 桥, 验证接线方向
+// 备注信息     在 TIM7 ISR 每 1ms 调用一次 (通过 app_START)
+//              motortest 步骤:
+//                1 = 左电机正转 (CH1)   期望: 车轮正转 (前进方向)
+//                2 = 左电机反转 (CH2)   期望: 车轮反转 (后退方向)
+//                3 = 右电机正转 (CH3)   期望: 车轮正转 (前进方向)
+//                4 = 右电机反转 (CH4)   期望: 车轮反转 (后退方向)
+//              每步 2 秒, 自动推进, 完成后 motortest=0
+//              触发: BTN3 松开 (当 run==0 && jiaozhun==0)
+//              LED4 闪烁表示测试进行中
+//-------------------------------------------------------------------------------------------------------------------
+void app_motor_install_test(void)
+{
+    if (motortest == 0) return;
+
+    motor_test_cnt++;
+
+    /* 时间到 → 推进到下一步 */
+    if (motor_test_cnt >= MOTOR_TEST_STEP_MS)
+    {
+        motor_test_cnt = 0;
+        motortest++;
+        if (motortest > 4)
+        {
+            motortest = 0;
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
+            app_LED_set(4, 0);
+            return;
+        }
+    }
+
+    /* 全部通道先清零, 再单独置对应步骤 */
+    int pwm_val = PWM_SCALE(MOTOR_TEST_PWM + motor_dead_zone);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
+
+    switch (motortest)
+    {
+        case 1: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_val); break; /* 左正转 */
+        case 2: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pwm_val); break; /* 左反转 */
+        case 3: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, pwm_val); break; /* 右正转 */
+        case 4: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pwm_val); break; /* 右反转 */
+        default: break;
+    }
+
+    /* LED4 每 500ms 翻转一次 */
+    app_LED_set(4, (motor_test_cnt % 1000) < 500 ? 1 : 0);
+}
+
 void app_fengshan(int k)
 {
     if (k == 1)

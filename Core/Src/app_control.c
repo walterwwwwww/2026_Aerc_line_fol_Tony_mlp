@@ -89,8 +89,17 @@ void app_START(int mode)
                 app_motor_get(0);
                 app_motor_out(0);
             }
+            else if (motortest > 0)
+            {
+                /* 安装测试中: 直接驱动 H 桥, 跳过速度环和角速度环 */
+                app_motor_install_test();
+            }
             else
             {
+                /* BTN3 松开 → 进入电机安装测试 (仅在停车且未校准时) */
+                if (anniu_zhuangtai[2][0] == 0 && anniu_zhuangtai[2][1] == 1)
+                    motortest = 1;
+
                 app_get_speed();
                 speed_ = 0;
                 angle_ring(1);

@@ -40,5 +40,6 @@ void app_motor_init(void);
 void app_motor_get(int mode);           // mode=0 关闭速度环, mode=1 打开
 void app_motor_out(int i);              // i=1 输出 PWM, i=0 全部停止
 void app_fengshan(int k);              // k=1 启动风扇, k=0 关闭
+void app_motor_install_test(void);     // 安装测试: 依次转左正/反/右正/反, 由 BTN3 触发
 
 #endif /* APP_MOTOR_H */
