@@ -26,6 +26,7 @@ extern float adc_error_l;
 extern float adc_error_average[10];
 extern int   if_bai[SENSOR_COUNT];
 extern int   jiaozhun;
+extern int   calibrated;       /* 1 = 已完成至少一次完整校准 */
 
 /* ---- 转弯计数导出变量 (可接 VOFA+ 观测) ---- */
 extern int   turn_count;           /* 当前第几弯 */

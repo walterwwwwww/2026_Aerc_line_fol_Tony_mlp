@@ -9,7 +9,7 @@
 float adc_beijing[SENSOR_COUNT];
 float adc_xian[SENSOR_COUNT];
 
-float adc_quan[SENSOR_HALF] = {0.0, 0.3, 1.7, 2.1, 2.4, 2.8, 3.5};
+float adc_quan[SENSOR_HALF] = {0.1, 1, 2, 3, 4, 5, 6.5};
 
 /* ---- 传感器数据 ---- */
 float adc_test[SENSOR_COUNT] = {0};
@@ -18,6 +18,7 @@ float adc_error_average[10] = {0};
 float adc_error = 0, adc_error_l = 0;
 int   if_bai[SENSOR_COUNT] = {0};
 int   jiaozhun = 0;
+int   calibrated = 0;
 
 uint16_t adc_raw[SENSOR_COUNT] = {0};
 
@@ -50,8 +51,8 @@ static int lost_line_cnt = 0;
  */
 
 /* ---- 转弯检测参数 ---- */
-#define TURN_ENTRY_MS       30      /* 外侧传感器持续 30ms 才算进弯 (防抖) */
-#define TURN_EXIT_MS        100     /* 外侧传感器消失 300ms 才算出弯 */
+#define TURN_ENTRY_MS       5      /* 外侧传感器持续 30ms 才算进弯 (防抖) */
+#define TURN_EXIT_MS        5     /* 外侧传感器消失 300ms 才算出弯 */
 #define FORCE_ERROR_MAG     8.0f   /* 强制转向时的偏差幅值 (可调, 越大转越急) */
 
 /* ---- 强制转向配置表 ---- */
@@ -63,8 +64,12 @@ typedef struct {
 static const TurnForceConfig force_table[] = {
     /* ↓↓↓ 在这里添加需要强制转向的弯道 ↓↓↓ */
 
-    // { 3,  45.0f },     /* 第3弯: 强制右转 45° */
-    // { 5, -45.0f },     /* 第5弯: 强制左转 45° */
+    { 1,  40.0f },     /* 第3弯: 强制右转 45° */
+    { 2,  40.0f },     /* 第3弯: 强制右转 45° */
+    { 10, 40.0f },     /* 第5弯: 强制左转 45° */
+    { 11, 1.0f },     /* 第5弯: 强制左转 45° */
+    { 12, -40.0f },     /* 第5弯: 强制左转 45° */
+
     // { 8,  90.0f },     /* 第8弯: 强制右转 90° */
 
     // { 5,  135.0f },     /* 第5弯: 强制右转 135° */
@@ -354,6 +359,7 @@ void app_adc_get(void)
     if (anniu_zhuangtai[1][0] == 0 && anniu_zhuangtai[1][1] == 1 && jiaozhun == 0)
     {
         jiaozhun = 1;
+        calibrated = 0;
         for (int i = 0; i < SENSOR_COUNT; i++)
         {
             adc_xian[i]    = 0.0f;
@@ -361,7 +367,10 @@ void app_adc_get(void)
         }
     }
     if (anniu_zhuangtai[2][0] == 0 && anniu_zhuangtai[2][1] == 1 && jiaozhun == 1)
+    {
         jiaozhun = 0;
+        calibrated = 1;
+    }
 
     if (jiaozhun == 1) app_LED_set(3, 1);
     if (jiaozhun == 0) app_LED_set(3, 0);
@@ -376,7 +385,7 @@ void app_adc_get(void)
         }
     }
     /* ==================== 正常巡线模式 ==================== */
-    else if (adc_beijing[3] != 0)
+    else if (calibrated)
     {
         /* 归一化到 0~10 */
         for (int i = 0; i < SENSOR_COUNT; i++)
@@ -398,9 +407,9 @@ void app_adc_get(void)
         for (int i = 0; i < SENSOR_COUNT; i++)
             if_bai[i] = (adc_test[i] <= 6.0f) ? 1 : 0;
 
-        /* 内侧第3/4/5位置传感器是否触发 (任意一侧) */
-        int outer_hit = (if_bai[2] == 0 || if_bai[3] == 0 || if_bai[4] == 0 ||
-                         if_bai[9] == 0 || if_bai[10] == 0 || if_bai[11] == 0);
+        /* 外侧传感器: 左0~3, 右10~13 */
+        int outer_hit = (if_bai[0] == 0 || if_bai[1] == 0 || if_bai[2] == 0 || if_bai[3] == 0 ||
+                         if_bai[10] == 0 || if_bai[11] == 0 || if_bai[12] == 0 || if_bai[13] == 0);
 
         /* ============================================================
          *  1) 强制转向中 → 用陀螺仪转到目标角度, 跳过传感器扫描
@@ -437,13 +446,8 @@ void app_adc_get(void)
          * ============================================================ */
         if (!turn_forced_flag && !line_found)
         {
-            /* T型路口: 两侧最外同时为黑 → 强制右转 */
-            if (if_bai[0] == 0 && if_bai[SENSOR_COUNT - 1] == 0)
-            {
-                line_found = 1;
-                adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1];
-            }
-            else
+            /* T型路口检测已移除 */
+            /* if (if_bai[0] == 0 && if_bai[SENSOR_COUNT - 1] == 0) { ... } */
             {
                 for (int i = 0; i < SENSOR_HALF; i++)
                 {

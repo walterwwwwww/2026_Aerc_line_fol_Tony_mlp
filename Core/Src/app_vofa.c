@@ -42,8 +42,8 @@
  *   CH13 turn_count         第几弯
  *   CH14 jiaozhun           校准模式标志
  *
- * ADC 传感器阵列 (归一化 0~10, ×10 后整数):
- *   CH15..CH28  adc_test[0..13]×10
+ * ADC 传感器阵列 (二值, 1=白 0=黑):
+ *   CH15..CH28  if_bai[0..13]
  */
 
 /* ---- TX FIFO ---- */
@@ -115,21 +115,11 @@ void app_vofa_tick(void)
             turn_count,
             jiaozhun,
 
-            /* CH14-27 ADC 传感器阵列 */
-            (int)(adc_test[0]  * 10),
-            (int)(adc_test[1]  * 10),
-            (int)(adc_test[2]  * 10),
-            (int)(adc_test[3]  * 10),
-            (int)(adc_test[4]  * 10),
-            (int)(adc_test[5]  * 10),
-            (int)(adc_test[6]  * 10),
-            (int)(adc_test[7]  * 10),
-            (int)(adc_test[8]  * 10),
-            (int)(adc_test[9]  * 10),
-            (int)(adc_test[10] * 10),
-            (int)(adc_test[11] * 10),
-            (int)(adc_test[12] * 10),
-            (int)(adc_test[13] * 10)
+            /* CH14-27 ADC 传感器阵列 (1=白, 0=黑) */
+            if_bai[0],  if_bai[1],  if_bai[2],  if_bai[3],
+            if_bai[4],  if_bai[5],  if_bai[6],  if_bai[7],
+            if_bai[8],  if_bai[9],  if_bai[10], if_bai[11],
+            if_bai[12], if_bai[13]
         );
         if (len > 0 && len < VOFA_BUF_SIZE)
         {
