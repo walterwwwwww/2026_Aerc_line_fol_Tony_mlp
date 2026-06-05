@@ -144,13 +144,13 @@ void app_motor_out(int i)
 
         if (duty_l > 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PWM_SCALE(duty_l + motor_dead_zone));
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PWM_SCALE(duty_l + motor_dead_zone));
         }
         else if (duty_l < 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PWM_SCALE(-duty_l + motor_dead_zone));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PWM_SCALE(-duty_l + motor_dead_zone));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
         }
         else  /* duty_l == 0: 不加死区, 电机停止 */
         {
@@ -165,13 +165,13 @@ void app_motor_out(int i)
 
         if (duty_r > 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PWM_SCALE(duty_r + motor_dead_zone));
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PWM_SCALE(duty_r + motor_dead_zone));
         }
         else if (duty_r < 0)
         {
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0);
-            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PWM_SCALE(-duty_r + motor_dead_zone));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PWM_SCALE(-duty_r + motor_dead_zone));
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, 0);
         }
         else  /* duty_r == 0: 不加死区, 电机停止 */
         {
