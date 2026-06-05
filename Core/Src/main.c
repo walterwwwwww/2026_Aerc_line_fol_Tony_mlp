@@ -142,6 +142,13 @@ int main(void)
      */
     app_vofa_cmd_process();
 
+    /*
+     * VOFA 数据发送移到主循环 (不在 TIM7 ISR 里)
+     *   原因: ISR 跑 ~5.6ms, DMA 完成中断会被持续 pending 的
+     *   TIM7 饿死. 主循环在 Thread mode 运行, DMA 中断可以正常触发.
+     */
+    app_vofa_send();
+
     HAL_Delay(2);
   }
   /* USER CODE END 3 */

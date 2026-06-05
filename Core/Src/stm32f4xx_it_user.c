@@ -57,6 +57,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         app_START(0);
 
         /* ---- 数据上传 ---- */
-        app_vofa_send();        // VOFA+ TX DMA, 非阻塞
+        /* ⚠️ app_vofa_send() 移到 main.c 主循环, 避免 DMA 中断在 ISR 里被饿死 */
     }
 }
