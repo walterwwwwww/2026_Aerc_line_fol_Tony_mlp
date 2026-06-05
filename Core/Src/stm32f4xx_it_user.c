@@ -31,7 +31,7 @@
  *   3) ADC 传感器读取
  *   4) 按键读取
  *   5) 主状态机
- *   6) VOFA+ 数据发送 (DMA, 不阻塞)
+ *   6) VOFA+ 字节发送 (直接写 USART2->DR, 每 tick 1 字节)
  *
  * ⚠️ 相比上一版的变动:
  *   移除了 app_pidtest_tick() / app_pidtest_is_active() 调用
@@ -56,7 +56,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         /* ---- 主控制: 正常巡线 (BTN1 启停) ---- */
         app_START(0);
 
-        /* ---- 数据上传 ---- */
-        /* ⚠️ app_vofa_send() 移到 main.c 主循环, 避免 DMA 中断在 ISR 里被饿死 */
+        /* ---- 数据上传: ISR 驱动字节 FIFO, 每 tick 发一字节, 无需 USART2 中断 ---- */
+        /* Thread mode 因 ISR > 周期被尾链饿死, 必须在此处驱动 VOFA 发送          */
+        app_vofa_tick();
     }
 }

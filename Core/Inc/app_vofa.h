@@ -36,8 +36,9 @@
 #define VOFA_DEFAULT_INTERVAL   5   /* 默认每 5ms 发一帧 (200Hz) */
 
 /* ---- 函数声明 ---- */
-void app_vofa_init(void);                       /* 初始化 DMA + 清零计数器 */
-void app_vofa_send(void);                       /* 在 TIM7 中断中调用, 内部自动分频 */
+void app_vofa_init(void);                       /* 初始化, 在 MX_USART2_UART_Init() 之后调用 */
+void app_vofa_tick(void);                       /* 在 TIM7 ISR 末尾调用 — 字节 FIFO 驱动, 无需 USART2 中断 */
+void app_vofa_send(void);                       /* 主循环占位接口 (no-op, 逻辑已移入 tick) */
 void app_vofa_set_interval(int interval_ms);    /* 运行时修改发送间隔 */
 
 #endif /* APP_VOFA_H */

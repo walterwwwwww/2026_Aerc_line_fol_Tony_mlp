@@ -50,7 +50,7 @@ void app_START(int mode)
             run = 1;
             time_cnt = 0;
             chusaidao = 0;
-            app_fengshan(1);  // 暂时不用重新启动风扇 (与原始注释一致)
+            // app_fengshan(1);  // 暂时不用重新启动风扇 (与原始注释一致)
         }
 
         if (run == 1)   /* ---- 运行中 ---- */

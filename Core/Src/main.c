@@ -106,7 +106,7 @@ int main(void)
   app_encoder_init();
   app_motor_init();
   app_gyro_init();
-  app_fengshan(1);     // 风扇, 如需要取消注释 (~24s 渐加速)
+  // app_fengshan(1);     // 风扇, 如需要取消注释 (~24s 渐加速)
   app_adc_init();
   app_vofa_init();        // VOFA+ TX DMA 初始化 (发送 12 通道遥测)
                           //   必须在 MX_DMA_Init 和 MX_USART2_UART_Init 之后
