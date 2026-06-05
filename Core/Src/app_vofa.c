@@ -40,9 +40,10 @@
  *   CH11 run                运行标志
  *   CH12 jiaoduz×10         累积 Z 角度
  *   CH13 turn_count         第几弯
+ *   CH14 jiaozhun           校准模式标志
  *
  * ADC 传感器阵列 (归一化 0~10, ×10 后整数):
- *   CH14..CH27  adc_test[0..13]×10
+ *   CH15..CH28  adc_test[0..13]×10
  */
 
 /* ---- TX FIFO ---- */
@@ -87,7 +88,7 @@ void app_vofa_tick(void)
             /* 内环 */
             "%d,%d,%d,%d,%d,%d,"
             /* 状态 */
-            "%d,%d,%d,"
+            "%d,%d,%d,%d,"
             /* ADC 14通道 */
             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 
@@ -108,10 +109,11 @@ void app_vofa_tick(void)
             pwml,
             pwmr,
 
-            /* CH11-13 状态 */
+            /* CH11-14 状态 */
             run,
             (int)(jiaoduz * 10),
             turn_count,
+            jiaozhun,
 
             /* CH14-27 ADC 传感器阵列 */
             (int)(adc_test[0]  * 10),

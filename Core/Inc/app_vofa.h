@@ -27,7 +27,8 @@
  *   CH11 run                运行状态
  *   CH12 jiaoduz×10         累积Z角度
  *   CH13 turn_count         第几弯
- *   CH14..CH27 adc_test[0..13]×10  传感器阵列归一化值
+ *   CH14 jiaozhun           校准模式标志
+ *   CH15..CH28 adc_test[0..13]×10  传感器阵列归一化值
  *
  * 使用方法:
  *   1) main.c 初始化中调用 app_vofa_init()
