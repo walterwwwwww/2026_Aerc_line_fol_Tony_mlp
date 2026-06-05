@@ -109,12 +109,12 @@ static float forced_target_angle = 0;
 #define IR_SENSOR_READ_CHECK_INDEX      (IR_SENSOR_READ_FRAME_WORDS - 1u)
 
 #define IR_SENSOR_SPI_TIMEOUT_MS        3u
-#define IR_SENSOR_CMD_GAP_CYCLES        40000u
+#define IR_SENSOR_CMD_GAP_CYCLES        4000u  /* sensor prepare is ~memcpy+checksum, fast */
 #define IR_SENSOR_CS_SETUP_CYCLES       2000u
 #define IR_SENSOR_CS_GUARD_CYCLES       2000u
 #define IR_SENSOR_RECOVER_GUARD_CYCLES  1000u
 #define IR_SENSOR_READ_FAIL_LIMIT       3u
-#define IR_SENSOR_FILTER_SAMPLE_COUNT   5u
+#define IR_SENSOR_FILTER_SAMPLE_COUNT   1u    /* 1 sample keeps ISR ~1.1ms; increase if line noise appears */
 
 #define IR_SENSOR_ADC_MAX_RAW           4095u
 
@@ -136,9 +136,13 @@ static void ir_sensor_delay_cycles(uint32_t loops)
     }
 }
 
-/* ---- trimmed mean of 5 samples: discard min/max, average remaining 3 ---- */
-static uint16_t ir_sensor_trimmed_mean5(const uint16_t samples[IR_SENSOR_FILTER_SAMPLE_COUNT])
+/* ---- value extraction: trimmed mean when >2 samples, pass-through when 1 ---- */
+static uint16_t ir_sensor_filter_value(const uint16_t samples[IR_SENSOR_FILTER_SAMPLE_COUNT])
 {
+#if IR_SENSOR_FILTER_SAMPLE_COUNT == 1
+    (void)samples;
+    return samples[0];
+#else
     uint32_t sum = 0u;
     uint16_t min_val = samples[0u];
     uint16_t max_val = samples[0u];
@@ -154,6 +158,7 @@ static uint16_t ir_sensor_trimmed_mean5(const uint16_t samples[IR_SENSOR_FILTER_
 
     return (uint16_t)((sum - min_val - max_val) /
                       (IR_SENSOR_FILTER_SAMPLE_COUNT - 2u));
+#endif
 }
 
 /* ---- XOR checksum verifier ---- */
@@ -280,7 +285,7 @@ static uint8_t ir_sensor_read_raw(uint16_t *out)
     /* ---- all 5 samples OK: trimmed mean per channel ---- */
     for (i = 0u; i < SENSOR_COUNT; i++)
     {
-        out[i] = ir_sensor_trimmed_mean5(rx_value[i]);
+        out[i] = ir_sensor_filter_value(rx_value[i]);
     }
 
     ir_sensor_online = 1u;
