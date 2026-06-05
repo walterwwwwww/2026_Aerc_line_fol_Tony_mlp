@@ -14,8 +14,8 @@
  *   所有 duty 值在输出时乘以 0.84 (通过 PWM_SCALE 宏)
  *
  * H桥接线:
- *   左电机: CH1(PA8)=正转, CH2(PA9)=反转
- *   右电机: CH3(PA10)=正转, CH4(PA11)=反转  (⚠️ 如方向反请交换 CH3/CH4)
+ *   左电机: CH2(PA9)=正转(前进), CH1(PA8)=反转(后退)
+ *   右电机: CH4(PA11)=正转(前进), CH3(PA10)=反转(后退)
  *
  * 死区补偿:
  *   原始代码在 pwm 输出时加 700 的死区补偿
@@ -217,10 +217,10 @@ static int motor_test_cnt = 0;
 // 函数简介     电机安装测试 — 依次驱动四路 H 桥, 验证接线方向
 // 备注信息     在 TIM7 ISR 每 1ms 调用一次 (通过 app_START)
 //              motortest 步骤:
-//                1 = CH1   期望: 左轮后退
-//                2 = CH2   期望: 左轮前进
-//                3 = CH3   期望: 右轮后退
-//                4 = CH4   期望: 右轮前进
+//                1 = CH2   期望: 左轮前进
+//                2 = CH1   期望: 左轮后退
+//                3 = CH4   期望: 右轮前进
+//                4 = CH3   期望: 右轮后退
 //              每步 2 秒, 自动推进, 完成后 motortest=0
 //              触发: BTN3 松开 (当 run==0 && jiaozhun==0)
 //              LED4 闪烁表示测试进行中
@@ -257,10 +257,10 @@ void app_motor_install_test(void)
 
     switch (motortest)
     {
-        case 1: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_val); break; /* 左正转 */
-        case 2: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pwm_val); break; /* 左反转 */
-        case 3: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, pwm_val); break; /* 右正转 */
-        case 4: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pwm_val); break; /* 右反转 */
+        case 1: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pwm_val); break; /* 左前进 */
+        case 2: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_val); break; /* 左后退 */
+        case 3: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, pwm_val); break; /* 右前进 */
+        case 4: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, pwm_val); break; /* 右后退 */
         default: break;
     }
 
