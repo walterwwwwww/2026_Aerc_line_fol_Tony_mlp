@@ -2,87 +2,45 @@
 
 /*
  * app_vofa.c
- * VOFA+ FireWater 协议数据发送模块 (DMA 版本)
+ * VOFA+ FireWater 协议数据发送模块 (中断模式, 参照 Main_board/vofa.c)
  *
- * 通过 USART2 (PD5=TX, 115200 baud) + DMA1_Stream6_Channel4 发送
- * DMA 发送完全不占用 CPU, TIM7 中断中只做 snprintf + 启动 DMA
+ * 通过 USART2 (PD5=TX, 115200 baud) + UART TXE/TC 中断发送
+ * 不依赖 DMA, 不会出现 DMA 中断优先级饿死问题
  *
- * ⚠️ DMA 在 app_vofa_init() 中手动初始化, 不需要修改 CubeMX
+ * 参考: /Users/chuntingli/Aerc_line_fol/Main_board/Core/Src/vofa.c
+ *   关键: HAL_UART_Transmit_IT (中断模式), 不是 DMA
  *
  * 传输带宽估算:
- *   10 通道整数, 每帧约 60~80 字节
+ *   12 通道整数, 每帧约 60~80 字节
  *   115200 baud ≈ 11520 字节/s → 最快约 150 帧/s
- *   默认 5ms = 200Hz ≈ 14000 字节/s, 占带宽 ~60%
+ *   默认 5ms 间隔 = 200Hz 调用, 实际发送取决于 UART 忙闲
  */
 
-/* ---- DMA 句柄 ---- */
-static DMA_HandleTypeDef hdma_usart2_tx;
-
-/* ---- 双缓冲区 (乒乓) ---- */
-/*
- * 为什么用双缓冲:
- *   DMA 正在发送 buf[0] 时, 中断中新数据写入 buf[1]
- *   下一帧发送 buf[1], 新数据写入 buf[0]
- *   这样 snprintf 和 DMA 永远不会操作同一块内存
- */
+/* ---- TX 缓冲区 ---- */
 #define VOFA_BUF_SIZE  128
-static char vofa_buf[2][VOFA_BUF_SIZE];
-static volatile uint8_t vofa_buf_idx = 0;   /* 当前写入的缓冲区索引 (0 或 1) */
+static char vofa_tx_buf[VOFA_BUF_SIZE];
 
 /* ---- 状态变量 ---- */
-static volatile uint8_t vofa_dma_busy = 0;  /* DMA 正在发送标志 */
+static volatile uint8_t vofa_busy = 0;
 static int vofa_interval = VOFA_DEFAULT_INTERVAL;
 static int vofa_cnt = 0;
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     手动初始化 USART2 TX DMA (DMA1_Stream6_Channel4)
-// 备注信息     不需要修改 CubeMX, DMA1 时钟已在 MX_DMA_Init() 中使能
-//              中断优先级设为 7 (低于 TIM7=5, 不影响控制)
-//-------------------------------------------------------------------------------------------------------------------
-static void vofa_dma_init(void)
-{
-    /* 配置 DMA1 Stream6 Channel4 → USART2_TX */
-    hdma_usart2_tx.Instance                 = DMA1_Stream6;
-    hdma_usart2_tx.Init.Channel             = DMA_CHANNEL_4;
-    hdma_usart2_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
-    hdma_usart2_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
-    hdma_usart2_tx.Init.MemInc              = DMA_MINC_ENABLE;
-    hdma_usart2_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    hdma_usart2_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-    hdma_usart2_tx.Init.Mode                = DMA_NORMAL;
-    hdma_usart2_tx.Init.Priority            = DMA_PRIORITY_LOW;
-    hdma_usart2_tx.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;
-
-    HAL_DMA_Init(&hdma_usart2_tx);
-
-    /* 将 DMA 句柄链接到 USART2 */
-    __HAL_LINKDMA(&huart2, hdmatx, hdma_usart2_tx);
-
-    /* 使能 DMA1_Stream6 中断 (发送完成回调需要)
-     * 优先级 0 = 最高, 必须高于 TIM7(prio=1), 否则 DMA 完成中断
-     * 会被持续运行的 TIM7 ISR 饿死, vofa_dma_busy 永远不清零 */
-    HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
-}
-
-//-------------------------------------------------------------------------------------------------------------------
 // 函数简介     VOFA 模块初始化
 // 备注信息     在 main.c 的 USER CODE BEGIN 2 中调用
-//              必须在 MX_USART2_UART_Init() 和 MX_DMA_Init() 之后
+//              必须在 MX_USART2_UART_Init() 之后
+//              不需要 DMA, 直接用 UART 中断
 //-------------------------------------------------------------------------------------------------------------------
 void app_vofa_init(void)
 {
     vofa_cnt = 0;
-    vofa_dma_busy = 0;
-    vofa_buf_idx = 0;
+    vofa_busy = 0;
     vofa_interval = VOFA_DEFAULT_INTERVAL;
-
-    vofa_dma_init();
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     DMA 发送一帧 FireWater 数据到 VOFA+
-// 备注信息     在 TIM7 中断尾部调用, 内部按 vofa_interval 分频
+// 函数简介     中断模式发送一帧 FireWater 数据到 VOFA+
+// 备注信息     在主循环中调用, 内部按 vofa_interval 分频
 //
 //              通道定义 (全部整数):
 //                CH0: adc_error ×100       偏差环输入
@@ -95,6 +53,8 @@ void app_vofa_init(void)
 //                CH7: speedr               右轮速度
 //                CH8: pwm_                 速度环输出
 //                CH9: run                  运行状态
+//                CH10: turn_count          第几弯
+//                CH11: turn_forced_flag    强制转向中
 //-------------------------------------------------------------------------------------------------------------------
 void app_vofa_send(void)
 {
@@ -103,12 +63,12 @@ void app_vofa_send(void)
         return;
     vofa_cnt = 0;
 
-    /* 上一帧 DMA 还没发完, 跳过本帧 (不阻塞) */
-    if (vofa_dma_busy)
+    /* 上一帧还在发, 跳过本帧 (非阻塞, 参照 vofa.c::vofa_send_frame) */
+    if (huart2.gState != HAL_UART_STATE_READY)
         return;
 
-    /* 写入当前缓冲区 */
-    int len = snprintf(vofa_buf[vofa_buf_idx], VOFA_BUF_SIZE,
+    /* 写入 TX 缓冲区 */
+    int len = snprintf(vofa_tx_buf, VOFA_BUF_SIZE,
         "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
         (int)(adc_error      * 100),  /* CH0:  偏差 ×100 */
         (int)(jiaosudutobe   * 100),  /* CH1:  期望角速度 ×100 */
@@ -126,13 +86,13 @@ void app_vofa_send(void)
 
     if (len > 0 && len < VOFA_BUF_SIZE)
     {
-        vofa_dma_busy = 1;
-
-        /* 启动 DMA 发送 (非阻塞, 立即返回) */
-        HAL_UART_Transmit_DMA(&huart2, (uint8_t *)vofa_buf[vofa_buf_idx], len);
-
-        /* 切换到另一个缓冲区, 下次写入不会和 DMA 冲突 */
-        vofa_buf_idx ^= 1;
+        /*
+         * 中断模式发送 (参照 Main_board/vofa.c):
+         *   HAL_UART_Transmit_IT 使能 UART TXE 中断, 每个中断发一字节,
+         *   全部发完后触发 TC 中断 → HAL_UART_TxCpltCallback 被调用.
+         *   不依赖 DMA, 没有 DMA 中断优先级被 TIM7 饿死的问题.
+         */
+        HAL_UART_Transmit_IT(&huart2, (uint8_t *)vofa_tx_buf, len);
     }
 }
 
@@ -147,29 +107,14 @@ void app_vofa_set_interval(int interval_ms)
     vofa_interval = interval_ms;
 }
 
-/* ============================ 中断处理 ============================ */
-
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     DMA1 Stream6 中断处理 (USART2 TX 发送完成)
-// 备注信息     DMA1_Stream6 没有被 CubeMX 使用, 这里直接定义 IRQ Handler
-//              HAL 库的弱符号机制保证不会和 CubeMX 生成的代码冲突
-//-------------------------------------------------------------------------------------------------------------------
-void DMA1_Stream6_IRQHandler(void)
-{
-    HAL_DMA_IRQHandler(&hdma_usart2_tx);
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     UART DMA 发送完成回调
-// 备注信息     由 HAL 库在 DMA 传输完成后自动调用
-//              清除 busy 标志, 允许下一帧发送
-//              ⚠️ 这是弱符号函数, 如果其他文件也定义了会冲突
-//                 如遇冲突, 将 vofa_dma_busy = 0 移到已有的回调中
+// 函数简介     UART TX 完成回调 (由 HAL 在 TC 中断里调用)
+// 备注信息     同时被 VOFA cmd 模块和本模块使用
 //-------------------------------------------------------------------------------------------------------------------
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART2)
     {
-        vofa_dma_busy = 0;
+        vofa_busy = 0;
     }
 }
