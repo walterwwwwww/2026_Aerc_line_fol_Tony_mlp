@@ -12,17 +12,22 @@
  *   每帧格式: "数据1,数据2,数据3,...,数据N\n"
  *   纯文本逗号分隔, 换行符结尾, 全部整数
  *
- * VOFA+ 通道分配 (共 10 通道, 全部整数):
- *   CH0: adc_error ×100    — 传感器偏差 (外环输入)
- *   CH1: jiaosudutobe ×100 — 期望角速度 (外环输出 / 中环目标)
- *   CH2: jiaosudu ×100     — 实际角速度 (中环反馈)
- *   CH3: jiaosuderror ×100 — 角速度误差 (中环误差)
- *   CH4: duty              — 差速输出 (中环输出, 不缩放)
- *   CH5: speed_            — 目标速度 (内环目标)
- *   CH6: speedl            — 左轮实际速度 (内环反馈)
- *   CH7: speedr            — 右轮实际速度 (内环反馈)
- *   CH8: pwm_              — 速度环 PWM 输出 (内环输出)
- *   CH9: run               — 运行状态标志
+ * VOFA+ 通道分配 (共 28 通道, 全部整数):
+ *   CH0  adc_error×100      传感器偏差 (外环输入)
+ *   CH1  jiaosudutobe×100   期望角速度 (外环输出/中环目标)
+ *   CH2  jiaosudu×100       实际角速度 (中环反馈)
+ *   CH3  jiaosuderror×100   角速度误差 (中环误差)
+ *   CH4  duty               差速输出 (中环输出)
+ *   CH5  speed_             目标速度 (内环目标)
+ *   CH6  speedl             左轮速度 (内环反馈)
+ *   CH7  speedr             右轮速度 (内环反馈)
+ *   CH8  pwm_               速度环基础输出
+ *   CH9  pwml               左轮最终PWM
+ *   CH10 pwmr               右轮最终PWM
+ *   CH11 run                运行状态
+ *   CH12 jiaoduz×10         累积Z角度
+ *   CH13 turn_count         第几弯
+ *   CH14..CH27 adc_test[0..13]×10  传感器阵列归一化值
  *
  * 使用方法:
  *   1) main.c 初始化中调用 app_vofa_init()
