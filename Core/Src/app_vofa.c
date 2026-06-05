@@ -58,8 +58,10 @@ static void vofa_dma_init(void)
     /* 将 DMA 句柄链接到 USART2 */
     __HAL_LINKDMA(&huart2, hdmatx, hdma_usart2_tx);
 
-    /* 使能 DMA1_Stream6 中断 (发送完成回调需要) */
-    HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 7, 0);
+    /* 使能 DMA1_Stream6 中断 (发送完成回调需要)
+     * 优先级 0 = 最高, 必须高于 TIM7(prio=1), 否则 DMA 完成中断
+     * 会被持续运行的 TIM7 ISR 饿死, vofa_dma_busy 永远不清零 */
+    HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 }
 
