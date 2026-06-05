@@ -51,34 +51,18 @@ static int lost_line_cnt = 0;
  */
 
 /* ---- 转弯检测参数 ---- */
-#define TURN_ENTRY_MS       5      /* 外侧传感器持续 30ms 才算进弯 (防抖) */
-#define TURN_EXIT_MS        5     /* 外侧传感器消失 300ms 才算出弯 */
+int turn_entry_ms = 5;               /* 进弯确认时间 (ms, VOFA 可调) */
 #define FORCE_ERROR_MAG     8.0f   /* 强制转向时的偏差幅值 (可调, 越大转越急) */
 
-/* ---- 强制转向配置表 ---- */
-typedef struct {
-    int   turn_number;      /* 第几个弯 (从1开始) */
-    float target_angle;     /* 强制转过的角度 (正=右转, 负=左转) */
-} TurnForceConfig;
-
-static const TurnForceConfig force_table[] = {
-    /* ↓↓↓ 在这里添加需要强制转向的弯道 ↓↓↓ */
-
-    { 1,  40.0f },     /* 第3弯: 强制右转 45° */
-    { 2,  40.0f },     /* 第3弯: 强制右转 45° */
-    { 10, 40.0f },     /* 第5弯: 强制左转 45° */
-    { 11, 1.0f },     /* 第5弯: 强制左转 45° */
-    { 12, -40.0f },     /* 第5弯: 强制左转 45° */
-
-    // { 8,  90.0f },     /* 第8弯: 强制右转 90° */
-
-    // { 5,  135.0f },     /* 第5弯: 强制右转 135° */
-    // { 6,  45.0f },     /* 第6弯: 强制右转 135° */
-
-
-    /* ↑↑↑ 添加到这里 ↑↑↑ */
-};
-#define FORCE_TABLE_SIZE  (sizeof(force_table) / sizeof(force_table[0]))
+/* ---- 每弯配置槽 (VOFA 可调) ----
+ *   每个槽: 弯号 + 强制角度 + 出弯时间
+ *   弯号=0 表示空槽 (跳过)
+ *   角度=0 表示直走 (不强制转向, 只使用该弯的出弯时间)
+ */
+#define TURN_SLOT_MAX  20
+int   turn_slot_num[20]   = { 1,  2,  4,  5,  7, 11, 12, 15, 16, 17, 18, 19, 20, 21};
+float turn_slot_angle[20] = {40, 40, 40,  1,  1, -40,-40,-60, 60,-60, 60,-60, 60,-60};
+int   turn_slot_exit[20]  = { 5, 200, 5,  5, 20,   2,  2,  5, 5, 5, 5, 5, 5};   /* 多余初始化为 0 */
 
 /* ---- 导出变量 (给 VOFA+ 观测) ---- */
 int   turn_count = 0;               /* 当前第几弯 */
@@ -91,6 +75,8 @@ static int turn_exit_cnt = 0;       /* 出弯确认计数 */
 
 static float forced_start_angle = 0;
 static float forced_target_angle = 0;
+
+static int current_exit_ms = 5;        /* 当前弯的出弯确认时间 (ms), 从配置表读取 */
 
 /* ============================ SPI 底层 (FROZEN PROTOCOL) ============================ */
 
@@ -476,7 +462,7 @@ void app_adc_get(void)
             if (outer_hit)
             {
                 turn_entry_cnt++;
-                if (turn_entry_cnt >= TURN_ENTRY_MS)
+                if (turn_entry_cnt >= turn_entry_ms)
                 {
                     /* 确认进弯, 计数 +1 */
                     turn_in_bend = 1;
@@ -484,14 +470,22 @@ void app_adc_get(void)
                     turn_exit_cnt = 0;
                     turn_count++;
 
-                    /* 查表: 这个弯是否需要强制转向 */
-                    for (int t = 0; t < (int)FORCE_TABLE_SIZE; t++)
+                    /* 查配置槽: 匹配弯号 → 读取角度 + 出弯时间 */
+                    current_exit_ms = 5;   /* 默认值 (未匹配到槽位时) */
+                    for (int t = 0; t < TURN_SLOT_MAX; t++)
                     {
-                        if (force_table[t].turn_number == turn_count)
+                        if (turn_slot_num[t] == 0) continue;   /* 空槽位, 跳过 */
+                        if (turn_slot_num[t] == turn_count)
                         {
-                            turn_forced_flag = 1;
-                            forced_start_angle = jiaoduz;
-                            forced_target_angle = force_table[t].target_angle;
+                            current_exit_ms = turn_slot_exit[t];
+
+                            /* 角度 != 0 → 强制转向 */
+                            if (turn_slot_angle[t] != 0.0f)
+                            {
+                                turn_forced_flag = 1;
+                                forced_start_angle = jiaoduz;
+                                forced_target_angle = turn_slot_angle[t];
+                            }
                             break;
                         }
                     }
@@ -504,11 +498,11 @@ void app_adc_get(void)
         }
         else
         {
-            /* ---- 在弯中: 检测出弯 ---- */
+            /* ---- 在弯中: 检测出弯 (使用当前弯的 exit_ms) ---- */
             if (!outer_hit && !turn_forced_flag)
             {
                 turn_exit_cnt++;
-                if (turn_exit_cnt >= TURN_EXIT_MS)
+                if (turn_exit_cnt >= current_exit_ms)
                 {
                     turn_in_bend = 0;
                     turn_exit_cnt = 0;

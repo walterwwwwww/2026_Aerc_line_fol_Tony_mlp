@@ -144,6 +144,12 @@ extern int   base_speed;
 extern int   run;
 extern int   max_time;
 
+/* app_adc.c (转弯配置) */
+extern int   turn_entry_ms;
+extern int   turn_slot_num[20];
+extern float turn_slot_angle[20];
+extern int   turn_slot_exit[20];
+
 /* ---- 参数映射表 ---- */
 static const ParamEntry param_table[] = {
     /* ========= 外环 (方向环) PD ========= */
@@ -175,6 +181,69 @@ static const ParamEntry param_table[] = {
     /* ========= 运行控制 ========= */
     { "run",        T_INT,   &run,              "0=stop 1=go" },
     { "max_time",   T_INT,   &max_time,         "auto stop ms"},
+
+    /* ========= 转弯配置 ========= */
+    { "entry_ms",   T_INT,   &turn_entry_ms,    "turn entry ms"},
+    { "turn1",      T_INT,   &turn_slot_num[0], "slot1 turn#"},
+    { "turn2",      T_INT,   &turn_slot_num[1], "slot2 turn#"},
+    { "turn3",      T_INT,   &turn_slot_num[2], "slot3 turn#"},
+    { "turn4",      T_INT,   &turn_slot_num[3], "slot4 turn#"},
+    { "turn5",      T_INT,   &turn_slot_num[4], "slot5 turn#"},
+    { "turn6",      T_INT,   &turn_slot_num[5], "slot6 turn#"},
+    { "turn7",      T_INT,   &turn_slot_num[6], "slot7 turn#"},
+    { "turn8",      T_INT,   &turn_slot_num[7], "slot8 turn#"},
+    { "angle1",     T_FLOAT, &turn_slot_angle[0],"slot1 angle"},
+    { "angle2",     T_FLOAT, &turn_slot_angle[1],"slot2 angle"},
+    { "angle3",     T_FLOAT, &turn_slot_angle[2],"slot3 angle"},
+    { "angle4",     T_FLOAT, &turn_slot_angle[3],"slot4 angle"},
+    { "angle5",     T_FLOAT, &turn_slot_angle[4],"slot5 angle"},
+    { "angle6",     T_FLOAT, &turn_slot_angle[5],"slot6 angle"},
+    { "angle7",     T_FLOAT, &turn_slot_angle[6],"slot7 angle"},
+    { "angle8",     T_FLOAT, &turn_slot_angle[7],"slot8 angle"},
+    { "exit1",      T_INT,   &turn_slot_exit[0], "slot1 exit ms"},
+    { "exit2",      T_INT,   &turn_slot_exit[1], "slot2 exit ms"},
+    { "exit3",      T_INT,   &turn_slot_exit[2], "slot3 exit ms"},
+    { "exit4",      T_INT,   &turn_slot_exit[3], "slot4 exit ms"},
+    { "exit5",      T_INT,   &turn_slot_exit[4], "slot5 exit ms"},
+    { "exit6",      T_INT,   &turn_slot_exit[5], "slot6 exit ms"},
+    { "exit7",      T_INT,   &turn_slot_exit[6], "slot7 exit ms"},
+    { "exit8",      T_INT,   &turn_slot_exit[7], "slot8 exit ms"},
+    { "turn9",      T_INT,   &turn_slot_num[8], "slot9 turn#"},
+    { "turn10",     T_INT,   &turn_slot_num[9], "slot10 turn#"},
+    { "turn11",     T_INT,   &turn_slot_num[10],"slot11 turn#"},
+    { "turn12",     T_INT,   &turn_slot_num[11],"slot12 turn#"},
+    { "turn13",     T_INT,   &turn_slot_num[12],"slot13 turn#"},
+    { "turn14",     T_INT,   &turn_slot_num[13],"slot14 turn#"},
+    { "turn15",     T_INT,   &turn_slot_num[14],"slot15 turn#"},
+    { "turn16",     T_INT,   &turn_slot_num[15],"slot16 turn#"},
+    { "turn17",     T_INT,   &turn_slot_num[16],"slot17 turn#"},
+    { "turn18",     T_INT,   &turn_slot_num[17],"slot18 turn#"},
+    { "turn19",     T_INT,   &turn_slot_num[18],"slot19 turn#"},
+    { "turn20",     T_INT,   &turn_slot_num[19],"slot20 turn#"},
+    { "angle9",     T_FLOAT, &turn_slot_angle[8],"slot9 angle"},
+    { "angle10",    T_FLOAT, &turn_slot_angle[9],"slot10 angle"},
+    { "angle11",    T_FLOAT, &turn_slot_angle[10],"slot11 angle"},
+    { "angle12",    T_FLOAT, &turn_slot_angle[11],"slot12 angle"},
+    { "angle13",    T_FLOAT, &turn_slot_angle[12],"slot13 angle"},
+    { "angle14",    T_FLOAT, &turn_slot_angle[13],"slot14 angle"},
+    { "angle15",    T_FLOAT, &turn_slot_angle[14],"slot15 angle"},
+    { "angle16",    T_FLOAT, &turn_slot_angle[15],"slot16 angle"},
+    { "angle17",    T_FLOAT, &turn_slot_angle[16],"slot17 angle"},
+    { "angle18",    T_FLOAT, &turn_slot_angle[17],"slot18 angle"},
+    { "angle19",    T_FLOAT, &turn_slot_angle[18],"slot19 angle"},
+    { "angle20",    T_FLOAT, &turn_slot_angle[19],"slot20 angle"},
+    { "exit9",      T_INT,   &turn_slot_exit[8], "slot9 exit ms"},
+    { "exit10",     T_INT,   &turn_slot_exit[9], "slot10 exit ms"},
+    { "exit11",     T_INT,   &turn_slot_exit[10],"slot11 exit ms"},
+    { "exit12",     T_INT,   &turn_slot_exit[11],"slot12 exit ms"},
+    { "exit13",     T_INT,   &turn_slot_exit[12],"slot13 exit ms"},
+    { "exit14",     T_INT,   &turn_slot_exit[13],"slot14 exit ms"},
+    { "exit15",     T_INT,   &turn_slot_exit[14],"slot15 exit ms"},
+    { "exit16",     T_INT,   &turn_slot_exit[15],"slot16 exit ms"},
+    { "exit17",     T_INT,   &turn_slot_exit[16],"slot17 exit ms"},
+    { "exit18",     T_INT,   &turn_slot_exit[17],"slot18 exit ms"},
+    { "exit19",     T_INT,   &turn_slot_exit[18],"slot19 exit ms"},
+    { "exit20",     T_INT,   &turn_slot_exit[19],"slot20 exit ms"},
 };
 #define PARAM_TABLE_SIZE (sizeof(param_table) / sizeof(param_table[0]))
 

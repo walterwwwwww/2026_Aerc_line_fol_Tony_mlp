@@ -119,6 +119,16 @@ void app_START(int mode)
 //-------------------------------------------------------------------------------------------------------------------
 void app_get_speed(void)
 {
+    /* 终点检测: 传感器 2~11 全白 → 停车 */
+    if (if_bai[2] == 1 && if_bai[3] == 1 && if_bai[4] == 1 && if_bai[5] == 1 &&
+        if_bai[6] == 1 && if_bai[7] == 1 && if_bai[8] == 1 && if_bai[9] == 1 &&
+        if_bai[10] == 1 && if_bai[11] == 1)
+    {
+        speed_ = 0;
+        jiaosudutobe = 0;
+        return;
+    }
+
     /* adc_error==0 有两种情况: 线居中 或 真丢线; 用 if_bai[] 区分 */
     int any_black = 0;
     for (int i = 0; i < SENSOR_COUNT; i++)
