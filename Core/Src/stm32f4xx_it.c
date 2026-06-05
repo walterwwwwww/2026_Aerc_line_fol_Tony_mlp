@@ -62,8 +62,6 @@ extern void app_vofa_cmd_on_uart_irq(void);
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA_HandleTypeDef hdma_spi1_tx;
-extern DMA_HandleTypeDef hdma_spi2_rx;
-extern DMA_HandleTypeDef hdma_spi2_tx;
 extern SPI_HandleTypeDef hspi1;
 extern SPI_HandleTypeDef hspi2;
 extern TIM_HandleTypeDef htim2;
@@ -213,33 +211,21 @@ void SysTick_Handler(void)
 /* please refer to the startup file (startup_stm32f4xx.s).                    */
 /******************************************************************************/
 
-/**
-  * @brief This function handles DMA1 stream3 global interrupt.
-  */
+/*
+ * DMA1_Stream3 and DMA1_Stream4 were used by SPI2 DMA (removed).
+ * SPI2 now uses blocking HAL_SPI_Transmit/Receive, no DMA.
+ */
+#if 0
 void DMA1_Stream3_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream3_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi2_rx);
-  /* USER CODE BEGIN DMA1_Stream3_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream3_IRQn 1 */
 }
 
-/**
-  * @brief This function handles DMA1 stream4 global interrupt.
-  */
 void DMA1_Stream4_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA1_Stream4_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream4_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi2_tx);
-  /* USER CODE BEGIN DMA1_Stream4_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream4_IRQn 1 */
 }
+#endif
 
 /**
   * @brief This function handles TIM2 global interrupt.
@@ -283,19 +269,16 @@ void SPI1_IRQHandler(void)
   /* USER CODE END SPI1_IRQn 1 */
 }
 
-/**
-  * @brief This function handles SPI2 global interrupt.
-  */
+/*
+ * SPI2_IRQHandler removed: SPI2 now uses blocking HAL_SPI_Transmit/Receive,
+ * no interrupts needed.
+ */
+#if 0
 void SPI2_IRQHandler(void)
 {
-  /* USER CODE BEGIN SPI2_IRQn 0 */
-
-  /* USER CODE END SPI2_IRQn 0 */
   HAL_SPI_IRQHandler(&hspi2);
-  /* USER CODE BEGIN SPI2_IRQn 1 */
-
-  /* USER CODE END SPI2_IRQn 1 */
 }
+#endif
 
 /**
   * @brief This function handles USART2 global interrupt.
