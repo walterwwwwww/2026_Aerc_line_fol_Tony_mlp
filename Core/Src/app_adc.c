@@ -51,7 +51,7 @@ static int lost_line_cnt = 0;
  */
 
 /* ---- 转弯检测参数 ---- */
-int turn_entry_ms = 5;               /* 进弯确认时间 (ms, VOFA 可调) */
+int turn_entry_ms = 10;               /* 进弯确认时间 (ms, VOFA 可调) */
 #define FORCE_ERROR_MAG     8.0f   /* 强制转向时的偏差幅值 (可调, 越大转越急) */
 
 /* ---- 每弯配置槽 (VOFA 可调) ----
@@ -59,10 +59,15 @@ int turn_entry_ms = 5;               /* 进弯确认时间 (ms, VOFA 可调) */
  *   弯号=0 表示空槽 (跳过)
  *   角度=0 表示直走 (不强制转向, 只使用该弯的出弯时间)
  */
-#define TURN_SLOT_MAX  20
-int   turn_slot_num[20]   = { 1,  2,  4,  5,  7, 11, 12, 15, 16, 17, 18, 19, 20, 21};
-float turn_slot_angle[20] = {40, 40, 40,  1,  1, -40,-40,-60, 60,-60, 60,-60, 60,-60};
-int   turn_slot_exit[20]  = { 5, 200, 5,  5, 20,   2,  2,  5, 5, 5, 5, 5, 5};   /* 多余初始化为 0 */
+#define TURN_SLOT_MAX  5
+// int   turn_slot_num[20]   = { 1,  2,  4,  5,  7, 11, 12, 15, 16, 17, 18, 19, 20, 21};
+// float turn_slot_angle[20] = {40, 40, 40,  1,  1, -40,-40,-60, 60,-60, 60,-60, 60,-60};
+// int   turn_slot_exit[20]  = { 5, 200, 5,  5, 20,   2,  2,  5, 5, 5, 5, 5, 5};   /* 多余初始化为 0 */
+
+int   turn_slot_num[20]   = { 7, 8, 11, 14 };
+float turn_slot_angle[20] = {-75, -25, 20, 20};
+int   turn_slot_exit[20]  = { 100, 100, 600, 10};   /* 多余初始化为 0 */
+
 
 /* ---- 导出变量 (给 VOFA+ 观测) ---- */
 int   turn_count = 0;               /* 当前第几弯 */
