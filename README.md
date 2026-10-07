@@ -62,6 +62,8 @@ Mac 可双击 `pid-tuner/启动上位机.command`。界面为 <http://127.0.0.1:
 
 ```sh
 python -m unittest discover -s pid-tuner -p 'test_*.py' -v
+# 可选：用 Node.js 检查开关的前端状态和请求行为
+node pid-tuner/test_turn_switch_ui.js
 mkdir -p build
 cc -O0 -I Core/Inc Tests/test_sensor_weights.c -o build/test_sensor_weights
 ./build/test_sensor_weights
