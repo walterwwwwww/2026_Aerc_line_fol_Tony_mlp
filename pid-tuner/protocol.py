@@ -1,4 +1,4 @@
-"""Protocol for the actual 5-6-2025 firmware: 29 CSV integers, not 28."""
+"""Protocol for the firmware: 29 base CSV integers + 14 raw reflectance = 43."""
 import math
 import re
 
@@ -11,7 +11,8 @@ CHANNELS = [
     ("右轮 PWM 命令", "", 1), ("运行标志", "", 1),
     ("累计角度", "°", .1), ("转弯计数", "", 1),
     ("校准模式", "", 1),
-] + [(f"传感器 {i+1}", "1=白 / 0=黑", 1) for i in range(14)]
+] + [(f"传感器 {i+1}", "1=白 / 0=黑", 1) for i in range(14)] + \
+  [(f"反射率 {i+1}", "0..10 低=黑", .01) for i in range(14)]
 
 PARAMS = [
     dict(name="KP_L", label="比例 P", group="速度环 · 两轮共用", kind="float", default=25),
@@ -57,7 +58,7 @@ def parse_line(line):
     if len(line) > 512:
         return dict(type="message", text="忽略超长串口行")
     fields = line.split(',')
-    if len(fields) == 29 and all(re.fullmatch(r"[-+]?\d+", v.strip()) for v in fields):
+    if len(fields) == 43 and all(re.fullmatch(r"[-+]?\d+", v.strip()) for v in fields):
         raw = list(map(int, fields))
         if any(abs(v) > 2147483648 for v in raw):
             return dict(type="message", text="忽略超出 int32 范围的数据帧")

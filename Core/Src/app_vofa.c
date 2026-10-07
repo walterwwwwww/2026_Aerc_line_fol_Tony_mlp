@@ -47,7 +47,7 @@
  */
 
 /* ---- TX FIFO ---- */
-#define VOFA_BUF_SIZE  256
+#define VOFA_BUF_SIZE  384
 static char     vofa_tx_buf[VOFA_BUF_SIZE];
 static uint16_t vofa_tx_len = 0;
 static uint16_t vofa_tx_pos = 0;
@@ -89,7 +89,9 @@ void app_vofa_tick(void)
             "%d,%d,%d,%d,%d,%d,"
             /* 状态 */
             "%d,%d,%d,%d,"
-            /* ADC 14通道 */
+            /* ADC 14通道 (1=白, 0=黑) */
+            "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
+            /* ML 训练用: 14 路原始反射值 ×100 (0..1000, 低=黑) */
             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
 
             /* CH0-1  外环 */
@@ -119,9 +121,28 @@ void app_vofa_tick(void)
             if_bai[0],  if_bai[1],  if_bai[2],  if_bai[3],
             if_bai[4],  if_bai[5],  if_bai[6],  if_bai[7],
             if_bai[8],  if_bai[9],  if_bai[10], if_bai[11],
-            if_bai[12], if_bai[13]
+            if_bai[12], if_bai[13],
+
+            /* CH28-41 ADC 原始反射值 ×100
+             *
+             * 这是 MLP 训练所需的数据。app_adc.c 里 if_bai[] 只保留了一个硬阈值
+             * (adc_test[i] <= 6.0), 阈值以下的信息全部丢失; 而 MLP 需要连续量。
+             * 乘以 100 变成整数, 与上面所有通道的整数格式一致, 便于
+             * pid-tuner/recorder.py 按 CSV 解析。
+             *
+             * 注意: 未标定时 adc_test[] 保存的是原始值而非 0..10 归一化值, 所以
+             * 这些列只有在 BTN2/BTN3 完成标定 (jiaozhun==0 && calibrated==1)
+             * 之后才有意义。采集训练数据前务必先完成光学标定。
+             */
+            (int)(adc_test[0]  * 100), (int)(adc_test[1]  * 100),
+            (int)(adc_test[2]  * 100), (int)(adc_test[3]  * 100),
+            (int)(adc_test[4]  * 100), (int)(adc_test[5]  * 100),
+            (int)(adc_test[6]  * 100), (int)(adc_test[7]  * 100),
+            (int)(adc_test[8]  * 100), (int)(adc_test[9]  * 100),
+            (int)(adc_test[10] * 100), (int)(adc_test[11] * 100),
+            (int)(adc_test[12] * 100), (int)(adc_test[13] * 100)
         );
-        if (len > 0 && len < VOFA_BUF_SIZE)
+        if (len > 0 && len < (int)sizeof(vofa_tx_buf))
         {
             vofa_tx_len = (uint16_t)len;
             vofa_tx_pos = 0;

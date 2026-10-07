@@ -1,0 +1,277 @@
+{
+  "format": "linfol-ml-tuning-shapes-v1",
+  "line_width_mm": 20.0,
+  "sensor": {
+    "count": 14,
+    "pitch_mm": 10.0,
+    "array_span_mm": 130.0
+  },
+  "surface": {
+    "line": "matte black, 20 mm wide",
+    "background": "light / white, uniform",
+    "why": "firmware marks a sensor as on-line when calibrated reflectance <= 6.0 of 0..10"
+  },
+  "shapes": [
+    {
+      "order": 1,
+      "slug": "s01_straight_1000",
+      "name": "S1 - Straight 1000 mm",
+      "canvas_mm": [
+        1120,
+        200
+      ],
+      "path_length_mm": 1000.0,
+      "runs": 1,
+      "difficulty": "easy",
+      "tunes": "Sensor weight symmetry, base_speed, steering PID (KP_L/KI_L/KD_L) straight-line damping",
+      "how_to_use": "Place the robot centred on the line and let it run. Watch for (a) it veering consistently to one side -> weight asymmetry, (b) slow weaving -> KP_L too high or KD_L too low, (c) sluggish correction -> KP_L too low.",
+      "notes": "Longest single run in the set; use it to set base_speed before any turn work.",
+      "tags": [
+        "straight",
+        "baseline"
+      ],
+      "files": {
+        "svg": "shapes/s01_straight_1000.svg",
+        "dxf": "shapes/s01_straight_1000.dxf"
+      }
+    },
+    {
+      "order": 2,
+      "slug": "s02_square_200",
+      "name": "S2 - Square loop 200 mm (4 x 90 deg)",
+      "canvas_mm": [
+        320,
+        320
+      ],
+      "path_length_mm": 800.0,
+      "runs": 4,
+      "difficulty": "easy",
+      "tunes": "90 deg turn rate (current_exit_ms / turn table), corner detection threshold",
+      "how_to_use": "Run the loop repeatedly in one direction. If it cuts the corner, increase the turn duration; if it overshoots and has to come back, decrease it. Both left and right corners must behave the same -> that is a symmetry check on weights 1..14.",
+      "notes": "Corners are 90 deg with 200 mm legs; a 130 mm sensor array fits the leg comfortably.",
+      "tags": [
+        "square",
+        "90deg",
+        "loop"
+      ],
+      "files": {
+        "svg": "shapes/s02_square_200.svg",
+        "dxf": "shapes/s02_square_200.dxf"
+      }
+    },
+    {
+      "order": 3,
+      "slug": "s03_open_z_200",
+      "name": "S3 - Open 3-turn Z (3 x 90 deg, 200 mm legs)",
+      "canvas_mm": [
+        720,
+        320
+      ],
+      "path_length_mm": 800.0,
+      "runs": 5,
+      "difficulty": "easy",
+      "tunes": "Turn direction reversal, turn-table slots, acceleration limit into/out of turns",
+      "how_to_use": "Each corner alternates left/right. If only one direction misbehaves, the fault is in the turn table symmetry, not in speed. Watch the transition: the robot should slow, rotate, then reacquire without hunting.",
+      "notes": "Best shape for isolating a single bad corner because the straights between are identical.",
+      "tags": [
+        "90deg",
+        "alternating"
+      ],
+      "files": {
+        "svg": "shapes/s03_open_z_200.svg",
+        "dxf": "shapes/s03_open_z_200.dxf"
+      }
+    },
+    {
+      "order": 4,
+      "slug": "s04_square_300",
+      "name": "S4 - Square 300 mm legs (high-speed corner entry)",
+      "canvas_mm": [
+        420,
+        420
+      ],
+      "path_length_mm": 1200.0,
+      "runs": 4,
+      "difficulty": "easy",
+      "tunes": "Acceleration limit / deceleration distance before a turn",
+      "how_to_use": "Same 90 deg corner as S2 but with 300 mm to build speed. If the robot runs wide here but is fine on S2, the acceleration limit is too high or braking starts too late. Set the accel limit on this shape, then re-check S2.",
+      "notes": "Compare against S2: identical corner angle, longer run-up. Difference isolates speed effects.",
+      "tags": [
+        "90deg",
+        "accel",
+        "loop"
+      ],
+      "files": {
+        "svg": "shapes/s04_square_300.svg",
+        "dxf": "shapes/s04_square_300.dxf"
+      }
+    },
+    {
+      "order": 5,
+      "slug": "s05_chamfer_45",
+      "name": "S5 - Chamfered square (4 x 45 deg)",
+      "canvas_mm": [
+        400,
+        400
+      ],
+      "path_length_mm": 786.3,
+      "runs": 6,
+      "difficulty": "easy",
+      "tunes": "Outer sensor weights (w1, w14), FORCE_ERROR_MAG, 45 deg handling",
+      "how_to_use": "At 45 deg two sensors go black almost simultaneously. If the robot stutters or loses the line here but is fine on S2, the outer weights are wrong. This is the shape that justifies ML-tuned weights.",
+      "notes": "45 deg is the worst case for the hand-tuned linear weight ramp.",
+      "tags": [
+        "45deg",
+        "diagonal",
+        "hard"
+      ],
+      "files": {
+        "svg": "shapes/s05_chamfer_45.svg",
+        "dxf": "shapes/s05_chamfer_45.dxf"
+      }
+    },
+    {
+      "order": 6,
+      "slug": "s06_arc_r200",
+      "name": "S6 - Quarter arc R=200 mm (90 deg continuous)",
+      "canvas_mm": [
+        450,
+        450
+      ],
+      "path_length_mm": 314.1,
+      "runs": 28,
+      "difficulty": "easy",
+      "tunes": "Steering integral (KI_L) on a sustained error, continuous tracking",
+      "how_to_use": "On a constant-radius arc the error is non-zero for a long time. Too little KI_L leaves a steady inward bias; too much winds up and the robot spirals off the end.",
+      "notes": "",
+      "tags": [
+        "arc",
+        "continuous"
+      ],
+      "files": {
+        "svg": "shapes/s06_arc_r200.svg",
+        "dxf": "shapes/s06_arc_r200.dxf"
+      }
+    },
+    {
+      "order": 7,
+      "slug": "s07_scurve",
+      "name": "S7 - S-curve (2 x 200 mm arcs, reversed)",
+      "canvas_mm": [
+        440,
+        280
+      ],
+      "path_length_mm": 502.4,
+      "runs": 56,
+      "difficulty": "easy",
+      "tunes": "Integral windup (KI_L), reversal symmetry",
+      "how_to_use": "Watch the second half. If the robot swings wide coming out of the first arc and takes time to settle, KI_L is winding up. Reduce it or clear the integral when the error sign flips.",
+      "notes": "Two equal opposite arcs; any asymmetry is a bug, not a tuning choice.",
+      "tags": [
+        "scurve",
+        "windup"
+      ],
+      "files": {
+        "svg": "shapes/s07_scurve.svg",
+        "dxf": "shapes/s07_scurve.dxf"
+      }
+    },
+    {
+      "order": 8,
+      "slug": "s08_zigzag_120",
+      "name": "S8 - Zigzag 120 mm legs (array straddles corners)",
+      "canvas_mm": [
+        840,
+        240
+      ],
+      "path_length_mm": 1080.0,
+      "runs": 9,
+      "difficulty": "easy",
+      "tunes": "Behaviour when the array cannot see a single clean line (line_found fallback)",
+      "how_to_use": "120 mm legs are shorter than the 130 mm array, so the array sees two line segments at once. If the robot loses the line only here, the problem is the fallback path, not the weights.",
+      "notes": "Stress test. Expect it to be the hardest piece in the set.",
+      "tags": [
+        "zigzag",
+        "hard",
+        "straddle"
+      ],
+      "files": {
+        "svg": "shapes/s08_zigzag_120.svg",
+        "dxf": "shapes/s08_zigzag_120.dxf"
+      }
+    },
+    {
+      "order": 9,
+      "slug": "s09_lbend_400",
+      "name": "S9 - L-bend, 400 mm legs (single 90 deg, measurable)",
+      "canvas_mm": [
+        520,
+        520
+      ],
+      "path_length_mm": 800.0,
+      "runs": 2,
+      "difficulty": "easy",
+      "tunes": "Exact turn duration / turn-table slot for 90 deg (measure in ms)",
+      "how_to_use": "One corner only, with 400 mm of straight either side. Time the rotation and check the exit: it should leave the corner parallel to the new line, not angled.",
+      "notes": "Best shape for turning the 20-row turn table into numbers, because there is exactly one corner.",
+      "tags": [
+        "90deg",
+        "single",
+        "measure"
+      ],
+      "files": {
+        "svg": "shapes/s09_lbend_400.svg",
+        "dxf": "shapes/s09_lbend_400.dxf"
+      }
+    },
+    {
+      "order": 10,
+      "slug": "s10_rect_400x200",
+      "name": "S10 - Rectangle 400 x 200 mm (race-style loop)",
+      "canvas_mm": [
+        520,
+        320
+      ],
+      "path_length_mm": 1200.0,
+      "runs": 4,
+      "difficulty": "easy",
+      "tunes": "End-to-end integration: all parameters together, lap timing",
+      "how_to_use": "Run five laps and time them. This is the acceptance test: it should be clean and consistent. Use it to confirm whatever you changed on S1..S9 did not regress the whole system.",
+      "notes": "Acceptance / regression shape. Do not tune on this one; verify on it.",
+      "tags": [
+        "loop",
+        "acceptance",
+        "timing"
+      ],
+      "files": {
+        "svg": "shapes/s10_rect_400x200.svg",
+        "dxf": "shapes/s10_rect_400x200.dxf"
+      }
+    },
+    {
+      "order": 11,
+      "slug": "s11_stadium_loop",
+      "name": "S11 - Stadium loop (continuous ML training, R=150 mm)",
+      "canvas_mm": [
+        820,
+        420
+      ],
+      "path_length_mm": 1742.0,
+      "runs": 58,
+      "difficulty": "easy",
+      "tunes": "Continuous lap-based ML training: endless labelled frames per loop",
+      "how_to_use": "Run laps continuously with the 上位机 in labelling mode. Each lap streams frames through both straights and both arcs, so the MLP sees a full range of offsets and curvatures every lap. Vary the lateral offset slightly between laps to cover more of the input space.",
+      "notes": "Recommended day-to-day training loop. Runs forever; no reset needed.",
+      "tags": [
+        "loop",
+        "continuous",
+        "training",
+        "stadium"
+      ],
+      "files": {
+        "svg": "shapes/s11_stadium_loop.svg",
+        "dxf": "shapes/s11_stadium_loop.dxf"
+      }
+    }
+  ]
+}

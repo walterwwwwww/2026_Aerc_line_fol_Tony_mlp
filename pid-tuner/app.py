@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pyserial==3.5"]
+# dependencies = ["pyserial==3.5", "numpy"]
 # ///
 """Local-only PID tuner. No cloud, no automatic start or parameter writes."""
 import argparse
@@ -22,6 +22,7 @@ import serial
 from serial.tools import list_ports
 from protocol import CHANNELS, PARAMS, TURN_TABLE_INFO, Decoder, validate_parameter
 from recorder import Recorder
+from ml_trainer import OnlineWeightTrainer
 
 ROOT = Path(__file__).resolve().parent
 
@@ -49,6 +50,7 @@ class Vehicle:
         self.rx_bytes = 0
         self.arrivals = deque(maxlen=200)
         self.recorder=Recorder(recording_root or ROOT/'recordings')
+        self.ml_trainer=OnlineWeightTrainer()
 
     def log(self, text, kind='info'):
         with self.lock:
@@ -231,6 +233,15 @@ class Vehicle:
                 self.frames.append(frame)
                 self.recorder.frame(frame)
                 self.arrivals.append(time.monotonic())
+                # feed the online ML weight trainer with the 14 raw reflectances
+                # (columns 28..41, scale .01 -> 0..10, low = dark). It only
+                # accepts frames while a ground-truth label is active.
+                if len(item['raw']) >= 42:
+                    try:
+                        refl=[item['raw'][28+i]*0.01 for i in range(14)]
+                        self.ml_trainer.feed(refl)
+                    except (TypeError, ValueError):
+                        pass
             elif kind in ('param','ack'):
                 name=item['name']
                 self.params[name]=dict(value=item['value'],time=now)
@@ -379,6 +390,8 @@ class Handler(BaseHTTPRequestHandler):
             for frame in rows:
                 writer.writerow([frame['time']]+frame['values'])
             return self.reply(200,('\ufeff'+out.getvalue()).encode(),'text/csv; charset=utf-8')
+        if path=='/api/ml':
+            return self.reply(200,vehicle.ml_trainer.status())
         files={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/weights.css':'weights.css'}
         if path in files:
             mime={'/':'text/html','/app.js':'text/javascript','/style.css':'text/css','/weights.css':'text/css'}[path]
@@ -413,6 +426,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,vehicle.start_recording(body.get('note','')))
             elif self.path=='/api/recording/stop':
                 return self.reply(200,vehicle.stop_recording())
+            elif self.path=='/api/ml/start':
+                vehicle.ml_trainer.start()
+            elif self.path=='/api/ml/stop':
+                vehicle.ml_trainer.stop()
+            elif self.path=='/api/ml/reset':
+                vehicle.ml_trainer.reset()
+            elif self.path=='/api/ml/label':
+                offset = body.get('offset')
+                shape = body.get('shape', '')
+                if offset is None:
+                    vehicle.ml_trainer.clear_label()
+                else:
+                    vehicle.ml_trainer.set_label(float(offset), str(shape))
+            elif self.path=='/api/ml/apply':
+                # send the current ML weights to the car as weight1..weight14
+                weights = vehicle.ml_trainer.status()['weights']
+                vehicle.submit([dict(name=f'weight{i+1}', value=float(w))
+                                for i, w in enumerate(weights)])
+                return self.reply(200, dict(ok=True, weights=weights))
             else:
                 return self.reply(404,dict(error='未知操作'))
             self.reply(200,dict(ok=True))

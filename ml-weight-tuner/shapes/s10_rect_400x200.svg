@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520.00mm" height="320.00mm" viewBox="0 0 520.00 320.00">
+<title>S10 - Rectangle 400 x 200 mm (race-style loop)</title>
+<desc>End-to-end integration: all parameters together, lap timing | line width 20 mm | path 1200 mm</desc>
+<rect x="0" y="0" width="100%" height="100%" fill="#ffffff"/>
+<path d="M 60.000 260.000 L 60.000 60.000 L 60.000 60.000 L 460.000 60.000 L 460.000 60.000 L 460.000 260.000 L 460.000 260.000 L 60.000 260.000" fill="none" stroke="#000000" stroke-width="20.000" stroke-linecap="butt" stroke-linejoin="miter"/>
+<path d="M 60.000 260.000 L 60.000 60.000 L 60.000 60.000 L 460.000 60.000 L 460.000 60.000 L 460.000 260.000 L 460.000 260.000 L 60.000 260.000" fill="none" stroke="#ff0000" stroke-width="0.40" stroke-dasharray="10.0,10.0" opacity="0.55"/>
+<line x1="6.00" y1="308.00" x2="106.00" y2="308.00" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="6.00" y1="308.00" x2="6.00" y2="303.00" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="16.00" y1="308.00" x2="16.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="26.00" y1="308.00" x2="26.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="36.00" y1="308.00" x2="36.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="46.00" y1="308.00" x2="46.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="56.00" y1="308.00" x2="56.00" y2="303.00" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="66.00" y1="308.00" x2="66.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="76.00" y1="308.00" x2="76.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="86.00" y1="308.00" x2="86.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="96.00" y1="308.00" x2="96.00" y2="305.50" stroke="#0066cc" stroke-width="0.60"/>
+<line x1="106.00" y1="308.00" x2="106.00" y2="303.00" stroke="#0066cc" stroke-width="0.60"/>
+<text x="108.00" y="309.50" font-family="monospace" font-size="4.0" fill="#0066cc">100 mm check</text>
+<text x="6.0" y="12.0" font-family="monospace" font-size="5.0" fill="#333">S10 - Rectangle 400 x 200 mm (race-style loop)</text>
+</svg>
