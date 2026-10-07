@@ -65,10 +65,8 @@ int turn_entry_ms = 10;               /* 进弯确认时间 (ms, VOFA 可调) */
  *   弯号=0 表示空槽 (跳过)
  *   角度=0 表示直走 (不强制转向, 只使用该弯的出弯时间)
  */
-#define TURN_SLOT_MAX  5
-/* Temporary disable: keep the original table so it can be restored by
- * changing this switch to 1. Normal sensor/PID steering remains active. */
-#define TURN_FORCE_TABLE_ENABLED  0
+/* Independent runtime switch. Table data survives enable/disable in RAM. */
+volatile int turn_table_enabled = 0;
 // int   turn_slot_num[20]   = { 1,  2,  4,  5,  7, 11, 12, 15, 16, 17, 18, 19, 20, 21};
 // float turn_slot_angle[20] = {40, 40, 40,  1,  1, -40,-40,-60, 60,-60, 60,-60, 60,-60};
 // int   turn_slot_exit[20]  = { 5, 200, 5,  5, 20,   2,  2,  5, 5, 5, 5, 5, 5};   /* 多余初始化为 0 */
@@ -91,6 +89,30 @@ static float forced_start_angle = 0;
 static float forced_target_angle = 0;
 
 static int current_exit_ms = 5;        /* 当前弯的出弯确认时间 (ms), 从配置表读取 */
+
+int app_turn_table_set_enabled(int enabled)
+{
+    /* Main-loop commands must not race the TIM7 turn-state machine. */
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    if (enabled && run != 0)
+    {
+        __set_PRIMASK(primask);
+        return 0;
+    }
+    turn_table_enabled = enabled ? 1 : 0;
+    if (!turn_table_enabled)
+    {
+        /* Give control back to the sensors, even in an active forced turn.
+         * Keep bend count and the entire table; do not create a new bend. */
+        turn_forced_flag = 0;
+        forced_start_angle = 0;
+        forced_target_angle = 0;
+        current_exit_ms = 5;
+    }
+    __set_PRIMASK(primask);
+    return 1;
+}
 
 /* ============================ SPI 底层 (FROZEN PROTOCOL) ============================ */
 
@@ -496,7 +518,7 @@ void app_adc_get(void)
 
                     /* 查配置槽: 匹配弯号 → 读取角度 + 出弯时间 */
                     current_exit_ms = 5;   /* 默认值 (未匹配到槽位时) */
-                    for (int t = 0; TURN_FORCE_TABLE_ENABLED && t < TURN_SLOT_MAX; t++)
+                    for (int t = 0; turn_table_enabled && t < TURN_LOOKUP_SLOT_COUNT; t++)
                     {
                         if (turn_slot_num[t] == 0) continue;   /* 空槽位, 跳过 */
                         if (turn_slot_num[t] == turn_count)

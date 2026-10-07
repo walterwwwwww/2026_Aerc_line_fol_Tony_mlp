@@ -10,19 +10,21 @@
 | `CMakeLists.txt`、`Vendor/STM32F4/` | 主板构建入口、匹配的 HAL/CMSIS、启动与链接支持 |
 | `Sensor_board/` | 配套 F103 传感器板源码、驱动和独立 CMake 工程 |
 | `pid-tuner/` | 本地网页上位机、串口协议解析、测试和 demo 参数草稿 |
-| `Tests/` | 传感器权重默认等价性与独立调节测试 |
+| `Tests/` | 传感器权重等价性、独立开关和转弯状态机测试 |
 | `docs/` | 来源、验证范围与保留的旧移植说明 |
 
 ## 主板当前行为
 
 - 默认基础巡航速度 `base_speed=40`。
-- `TURN_FORCE_TABLE_ENABLED=0`：保留原转向表，默认不查表执行强制转向。原有 PID 循迹保留。
+- 独立运行时开关 `turn_enable=0/1`：复位默认关闭，关闭保留整张转向表并取消当前强制转向，使用正常 PID 循迹。开启仍仅查前 5 槽，需先停车。
 - 阻塞 SPI 采集在主循环完成，1 ms 控制中断使用完整数据快照，避免挤占命令处理和系统计时。
 - 停车分支将四个电机 PWM 比较寄存器归零。
 - 14 路独立权重可通过 `weight1`–`weight14` 修改，范围为非负幅值 0–100。左右方向由原扫描算法决定。
 - 默认权重从 S01 到 S14 为 `6.5, 5, 4, 3, 2, 1, 0.1, 0.1, 1, 2, 3, 4, 5, 6.5`；镜像默认值保留旧计算表达式，外侧优先扫描不变。
 
 `pid-tuner/profiles/2026-10-07-demo.json` 保存了最近已确认的调参值。它是可载入草稿，不会自动发送，也不等同于固件开机默认值。串口改动保存在 RAM，车辆复位后恢复源码默认值，传感器标定也需要重新进行。
+
+当前独立开关版本已编译并通过软件测试；本次实车烧录在写入阶段因 SWD 通信中断而未完成，当前板上程序可能不完整，需恢复烧录并回读验证后再运行。备份和调试日志保留本地，不随源码提交。
 
 ## 构建两块板
 
@@ -54,7 +56,7 @@ python -m pip install -r pid-tuner/requirements.txt
 python pid-tuner/app.py --open
 ```
 
-Mac 可双击 `pid-tuner/启动上位机.command`。界面为 <http://127.0.0.1:8765/>，选择逐飞无线 USB 接收器对应端口，115200、8N1，点击读取参数/权重。只有车端回复后才显示确认。完整用法见 [上位机说明](pid-tuner/README.md)。
+Mac 可双击 `pid-tuner/启动上位机.command`。界面为 <http://127.0.0.1:8765/>，选择逐飞无线 USB 接收器对应端口，115200、8N1，点击读取参数/权重。只有车端回复后才显示确认。支持连续录制 ZIP、20 行转向表编辑和独立开关。完整用法见 [上位机说明](pid-tuner/README.md)。
 
 ## 测试
 
@@ -63,6 +65,8 @@ python -m unittest discover -s pid-tuner -p 'test_*.py' -v
 mkdir -p build
 cc -O0 -I Core/Inc Tests/test_sensor_weights.c -o build/test_sensor_weights
 ./build/test_sensor_weights
+clang -std=c11 -fsanitize=address,undefined -I Tests/adc_mock -I Core/Inc Tests/test_turn_switch.c -lm -o build/test_turn_switch
+./build/test_turn_switch
 ```
 
 串口测试使用 POSIX 伪终端，适合 Mac/Linux；Windows 可使用上位机，但这些伪终端测试未在 Windows 验证。已完成的构建、烧录、回读与串口验证范围见 [验证记录](docs/VALIDATION.md)。

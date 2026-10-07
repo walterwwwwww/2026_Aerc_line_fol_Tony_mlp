@@ -31,14 +31,23 @@ SENSOR_WEIGHT_DEFAULTS = [6.5,5,4,3,2,1,.1,.1,1,2,3,4,5,6.5]
 PARAMS += [dict(name=f'weight{i+1}', label=f'S{i+1:02d}', group='14 路传感器权重',
                 kind='float', default=value, sensor=i, min=0, max=100)
            for i,value in enumerate(SENSOR_WEIGHT_DEFAULTS)]
+# Existing firmware exposes 20 stored slots but the disabled lookup scans five.
+TURN_TABLE_INFO = dict(slots=20, lookup_slots=5, switch_parameter='turn_enable',
+    boot_enabled=False, status_source='Read turn_enable from vehicle; absent on legacy firmware.')
+TURN_DEFAULTS = [(7,-75,100),(8,-25,100),(11,20,600),(14,20,10)]+[(0,0,0)]*16
+PARAMS += [dict(name='entry_ms',label='进弯确认时间',group='转向表',kind='int',
+                default=10,min=1,max=60000,turn_table=True)]
+for _slot, (_turn,_angle,_exit) in enumerate(TURN_DEFAULTS,1):
+    for _prefix,_kind,_value,_min,_max in (
+        ('turn','int',_turn,0,1000000),('angle','float',_angle,-180,180),('exit','int',_exit,0,60000)):
+        PARAMS.append(dict(name=f'{_prefix}{_slot}', label=_prefix, group='转向表',
+            kind=_kind,default=_value,min=_min,max=_max,turn_table=True,slot=_slot))
 PARAM_MAP = {p['name'].lower(): p for p in PARAMS}
-# Hidden firmware settings used by the dedicated temporary table-disable action.
-for _slot in range(1,21):
-    PARAM_MAP[f'turn{_slot}'] = dict(name=f'turn{_slot}',kind='int',group='转弯表')
+PARAM_MAP['turn_enable'] = dict(name='turn_enable',kind='int',group='转向表开关',min=0,max=1)
 NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 ACK = re.compile(r"^(?:[-+0-9,]+)?\[OK\]\s+(\w+)\s*=\s*(" + NUMBER + r")\s*$")
 VALUE = re.compile(r"^(\w+)\s*=\s*(" + NUMBER + r")\s*(?://.*)?$")
-QUERY_NAMES = [p['name'] for p in PARAM_MAP.values()] + ['KP_R','KI_R','KD_R','run','speed','max_time','entry_ms'] + [f'{prefix}{i}' for prefix in ('angle','exit') for i in range(1,21)]
+QUERY_NAMES = [p['name'] for p in PARAM_MAP.values()] + ['KP_R','KI_R','KD_R','run','speed','max_time']
 # The car's legacy TX can leave numeric CSV bytes before a parameter reply.
 # Recover only exact known parameter names, not arbitrary suffixes.
 KNOWN_VALUE = re.compile(r"^(?:[-+0-9,]+)?(" + '|'.join(map(re.escape,QUERY_NAMES)) + r")\s*=\s*(" + NUMBER + r")\s*(?://.*)?$")
@@ -88,7 +97,7 @@ class Decoder:
 def validate_parameter(name, value):
     spec = PARAM_MAP.get(str(name).lower())
     if not spec:
-        raise ValueError("未知参数；这里只允许修改界面列出的 PID 和限幅参数")
+        raise ValueError("未知参数；这里只允许修改界面列出的参数")
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -99,7 +108,11 @@ def validate_parameter(name, value):
         raise ValueError("这个参数必须是整数")
     if 'sensor' in spec and not 0 <= number <= 100:
         raise ValueError("传感器权重幅值必须在 0 到 100 之间，方向由左右位置决定")
-    if spec['group'] in ('速度与限幅','转弯表') and number < 0:
+    if spec['name']=='turn_enable' and number not in (0,1):
+        raise ValueError('转向表开关只允许 0（关闭）或 1（开启）')
+    if spec.get('turn_table') and not spec['min'] <= number <= spec['max']:
+        raise ValueError(f"{spec['name']} 必须在 {spec['min']} 到 {spec['max']} 之间")
+    if spec['group'] == '速度与限幅' and number < 0:
         raise ValueError("速度和限幅参数不能为负数")
     number = int(number) if spec['kind'] == 'int' else number
     return spec['name'], number, f"{spec['name']}={number:.8g}\n"

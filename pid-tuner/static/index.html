@@ -5,17 +5,27 @@
 <header><div><span class="eyebrow">INTELLIGENT RACING</span><h1>循迹车 <span>PID 调试台</span></h1></div><div class="connection"><span id="status-dot"></span><span id="connection-status">串口未连接</span></div></header>
 <section class="toolbar"><label>串口<select id="device" aria-label="串口设备"></select></label><button id="refresh">刷新</button><label>波特率<select id="baud"><option>115200</option><option>230400</option><option>57600</option><option>9600</option></select></label><button id="connect" class="primary">连接串口</button><span class="separator"></span><span id="rx-stats">等待数据</span><button id="stop" class="danger">发送停车指令 !</button></section>
 <div id="notice" role="status">连接后可以查看波形。参数只有收到车端确认，才会标为已生效。</div>
+<section class="recording-bar"><label>录制说明 <input id="record-note" type="text" maxlength="200" placeholder="例如：速度 40，测试半圆内侧权重"></label><button id="record-start" class="record-button">开始录制</button><button id="record-stop" disabled>停止录制并保存</button><span id="record-status" role="status">未录制</span><a id="record-download" hidden>下载录制包 ZIP</a><p id="record-path"></p><small>停止录制不会让车停车。录制全部收到的串口数据，不限显示缓存。停止后发送 ZIP 给这个聊天；同一电脑也可告诉我录制编号，让我直接分析本地文件。</small></section>
 <main>
 <aside>
 <div class="panel-title"><h2>参数调整</h2><button id="query">读取车端参数</button></div>
 <p class="muted" id="query-status">输入框内灰字是源码参考值，不代表车上当前值。</p>
 <div id="parameters"></div>
 <div class="profile-buttons"><button id="save-profile">保存参数草稿</button><button id="load-profile">载入草稿</button><input id="profile-file" type="file" accept="application/json,.json" hidden></div>
-<div class="profile-buttons"><button id="disable-table">临时停用转向表</button></div><p class="muted" id="table-status">当前新版固件默认关闭转向表；此按钮只临时清零弯号，保留正常 PID 循迹。</p>
+
 <p class="muted">参数在车端 RAM 中生效；断电或复位后恢复固件默认值。当前速度环两轮共用 KP_L / KI_L / KD_L。</p>
 </aside>
 <article>
 <section class="metrics"><div><span>目标速度</span><strong id="target">—</strong></div><div><span>左轮 / 右轮</span><strong id="speed">—</strong></div><div><span>实际角速度</span><strong id="gyro">—</strong></div><div><span>运行状态</span><strong id="run-status">—</strong></div></section>
+<section class="sensor-card turn-card">
+<div class="chart-heading"><h3>转向表</h3><div class="weight-actions"><button id="query-turns">读取转向表</button><button id="send-turns" class="primary">写入已填表格</button></div></div>
+<div class="turn-switch-row"><button id="turn-toggle" role="switch" aria-checked="false" aria-label="转向表开关" disabled><span class="switch-track"><span></span></span><span id="turn-toggle-label">转向表状态未知</span></button><span id="table-status" class="muted">请读取车端参数，确认独立开关状态。</span></div>
+<p id="turn-status" class="muted">请连接串口，先读取车端转向表。</p>
+<div id="turn-entry"></div>
+<details id="turn-details"><summary>展开 20 行转向配置</summary><div class="turn-scroll"><table class="turn-table"><thead><tr><th>槽位</th><th>弯号（0=空）</th><th>转角 °</th><th>出弯确认 ms</th><th>写入</th></tr></thead><tbody id="turn-rows"></tbody></table></div></details>
+<div class="weight-actions turn-footer"><button id="disable-table">清零全部弯号</button><span>仅清空弯号，保留角度和时间</span></div>
+<p class="muted">进弯：外侧传感器持续检出黑线；出弯：外侧黑线消失达到设定时间。正角度按源码为右转、负角度为左转，实车方向需确认；角度 0 不强制转向。当前项目即使开启查表也仅使用前 5 槽，6–20 为备用。修改仅保存在 RAM，复位恢复固件默认值。</p>
+</section>
 <div class="plot-toolbar"><h2>实时波形</h2><div><label>时间窗 <select id="window"><option value="10">10 秒</option><option value="30" selected>30 秒</option><option value="60">60 秒</option><option value="120">120 秒</option></select></label><button id="pause">暂停波形</button><button id="export">导出 CSV</button></div></div>
 <section class="chart-card"><div class="chart-heading"><h3>速度环</h3><span>脉冲 / 编码器采样</span></div><div class="legend" id="speed-legend"></div><canvas id="speed-chart" aria-label="目标速度、左轮速度和右轮速度波形"></canvas></section>
 <section class="chart-card"><div class="chart-heading"><h3>角速度环</h3><span>°/s</span></div><div class="legend" id="gyro-legend"></div><canvas id="gyro-chart" aria-label="目标角速度、实际角速度和误差波形"></canvas></section>

@@ -20,7 +20,8 @@ from pathlib import Path
 
 import serial
 from serial.tools import list_ports
-from protocol import CHANNELS, PARAMS, Decoder, validate_parameter
+from protocol import CHANNELS, PARAMS, TURN_TABLE_INFO, Decoder, validate_parameter
+from recorder import Recorder
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,7 +30,7 @@ def vehicle_ports():
             if 'debug-console' not in p.device and 'Bluetooth-Incoming-Port' not in p.device]
 
 class Vehicle:
-    def __init__(self):
+    def __init__(self, recording_root=None):
         self.lock = threading.RLock()
         self.write_lock = threading.Lock()
         self.port = None
@@ -47,11 +48,38 @@ class Vehicle:
         self.frame_id = self.log_id = self.command_id = 0
         self.rx_bytes = 0
         self.arrivals = deque(maxlen=200)
+        self.recorder=Recorder(recording_root or ROOT/'recordings')
 
     def log(self, text, kind='info'):
         with self.lock:
             self.log_id += 1
             self.logs.append(dict(id=self.log_id, time=time.time(), text=text, kind=kind))
+            self.recorder.event('host_log',dict(text=text,kind=kind))
+
+    def recording_snapshot(self):
+        with self.lock:
+            return dict(device=self.device,baud=self.baud,connected=bool(self.port and self.port.is_open),
+                params={k:dict(v) for k,v in self.params.items()},frame_id=self.frame_id,rx_bytes=self.rx_bytes,
+                parameter_note='Last values actually confirmed by the car, with their confirmation timestamps; unqueried values are absent.',
+                latest_frame=dict(self.frames[-1]) if self.frames else None)
+
+    def start_recording(self, note=''):
+        with self.lock:
+            if not self.port or not self.port.is_open:
+                raise ValueError('请先连接串口，再开始录制')
+            return self.recorder.start(self.recording_snapshot(),CHANNELS,note)
+
+    def stop_recording(self):
+        return self.recorder.stop(self.recording_snapshot())
+
+    def record_command(self, command):
+        self.recorder.event('command_status',{k:v for k,v in command.items() if k!='deadline'})
+
+    def cancel_queue(self, reason):
+        for command in self.queue:
+            command.update(status='cancelled',message=reason)
+            self.record_command(command)
+        self.queue.clear()
 
     def connect(self, device, baud):
         available = {p.device for p in vehicle_ports()}
@@ -81,9 +109,10 @@ class Vehicle:
         with self.lock:
             self.generation += 1
             port, self.port = self.port, None
-            self.queue.clear()
+            self.cancel_queue('串口连接已断开')
             if self.pending:
                 self.pending.update(status='unconfirmed', message='连接已断开，未确认生效')
+                self.record_command(self.pending)
                 self.pending = None
             self.query = None
         if port:
@@ -96,7 +125,9 @@ class Vehicle:
                 port = self.port
             if not port or not port.is_open:
                 raise ValueError('串口尚未连接')
+            self.recorder.event('tx_attempt',dict(text=text,byte_count=len(text)))
             written = port.write(text.encode('ascii'))
+            self.recorder.bytes('tx',text.encode('ascii')[:written])
             if written != len(text):
                 raise ValueError('串口命令未完整发送')
             self.log('发送：' + text.strip(), 'tx')
@@ -114,11 +145,11 @@ class Vehicle:
             raise
 
     def submit(self, items):
-        if not isinstance(items,list) or not 1 <= len(items) <= 20:
-            raise ValueError('每次发送 1 到 20 个参数')
+        if not isinstance(items,list) or not 1 <= len(items) <= 64:
+            raise ValueError('每次发送 1 到 64 个参数')
         checked = [validate_parameter(p.get('name'),p.get('value')) for p in items]
         with self.lock:
-            if self.pending or self.queue or (self.query and self.query['status']=='waiting'):
+            if self.pending or self.queue or (self.query and self.query['status'] in ('waiting','receiving')):
                 raise ValueError('车端仍在处理上一条请求，请稍后再发')
             if not self.port:
                 raise ValueError('串口尚未连接')
@@ -127,13 +158,32 @@ class Vehicle:
                 command=dict(id=self.command_id,name=name,value=value,text=text,status='queued',time=time.time())
                 self.commands.append(command)
                 self.queue.append(command)
+                self.record_command(command)
         self.advance()
+
+    def set_turn_table_enabled(self, enabled):
+        name,value,_=validate_parameter('turn_enable',enabled)
+        with self.lock:
+            known=self.params.get(name)
+            if not self.port or not self.port.is_open:
+                raise ValueError('请先连接串口')
+            if not known or known['value'] not in (0,1):
+                raise ValueError('车端尚未提供 turn_enable；请读取参数，旧固件需要重烧')
+            if value==1:
+                latest=self.frames[-1] if self.frames else None
+                if not latest or time.time()-latest['time']>2 or latest['values'][11]!=0 or latest['values'][9]!=0 or latest['values'][10]!=0:
+                    raise ValueError('开启前请停车，并等待收到新的停车状态波形')
+                names=['entry_ms']+[f'{prefix}{i}' for i in range(1,6) for prefix in ('turn','angle','exit')]
+                if not all(n in self.params for n in names):
+                    raise ValueError('请先读取完整转向表，再开启')
+                for n in names:validate_parameter(n,self.params[n]['value'])
+            self.submit([dict(name=name,value=value)])
 
     def stop(self):
         with self.lock:
             if not self.port or not self.port.is_open:
                 raise ValueError('串口尚未连接')
-            self.queue.clear()
+            self.cancel_queue('被停车请求取消')
             if self.pending:
                 self.pending.update(status='unconfirmed',message='停车请求打断了参数发送')
                 self.pending = None
@@ -141,11 +191,13 @@ class Vehicle:
             command=dict(id=self.command_id,name='!',value=0,text='!\n',status='waiting',time=time.time(),deadline=time.monotonic()+5)
             self.commands.append(command)
             self.pending = command
+            self.record_command(command)
         try:
             self.send('!\n')
         except Exception as e:
             with self.lock:
                 command.update(status='unconfirmed',message=str(e))
+                self.record_command(command)
                 self.pending=None
             raise
 
@@ -156,22 +208,28 @@ class Vehicle:
             command = self.queue.popleft()
             command.update(status='waiting',deadline=time.monotonic()+5)
             self.pending = command
+            self.record_command(command)
         try:
             self.send(command['text'])
         except Exception as e:
             with self.lock:
                 command.update(status='unconfirmed',message=str(e))
+                self.record_command(command)
                 self.pending=None
-                self.queue.clear()
+                self.cancel_queue('前一条命令发送失败')
             self.log(str(e),'error')
 
     def receive(self, item):
         now = time.time()
+        if item['type']!='frame':
+            self.recorder.event('parsed_serial',item)
         with self.lock:
             kind=item['type']
             if kind=='frame':
                 self.frame_id+=1
-                self.frames.append(dict(id=self.frame_id,time=now,raw=item['raw'],values=item['values']))
+                frame=dict(id=self.frame_id,time=now,raw=item['raw'],values=item['values'])
+                self.frames.append(frame)
+                self.recorder.frame(frame)
                 self.arrivals.append(time.monotonic())
             elif kind in ('param','ack'):
                 name=item['name']
@@ -186,19 +244,22 @@ class Vehicle:
                         command.update(status='confirmed',message='车端已确认')
                     else:
                         command.update(status='unconfirmed',message='回复值与提交值不一致')
+                    self.record_command(command)
                     self.pending=None
                     if command['status']!='confirmed':
-                        self.queue.clear()
+                        self.cancel_queue('车端回复值与请求不一致')
                 self.log(f"{'确认' if kind=='ack' else '读取'}：{name} = {item['value']:g}",'rx')
             else:
                 text=item['text']
                 if text.startswith('[STOP]') and self.pending and self.pending['name']=='!':
                     self.pending.update(status='confirmed',message='车端已回复停车；仍需检查 PWM 归零')
+                    self.record_command(self.pending)
                     self.pending=None
                 elif text.startswith('[ERR]') and self.pending:
                     self.pending.update(status='rejected',message=text)
+                    self.record_command(self.pending)
                     self.pending=None
-                    self.queue.clear()
+                    self.cancel_queue('车端拒绝了前一条命令')
                 self.log(text,'error' if text.startswith('[ERR]') else 'rx')
         self.advance()
 
@@ -207,9 +268,10 @@ class Vehicle:
         with self.lock:
             if self.pending and now>self.pending['deadline']:
                 self.pending.update(status='unconfirmed',message='5 秒内未收到车端确认，不能认为已生效')
+                self.record_command(self.pending)
                 self.log(self.pending['name']+'：未收到车端确认','error')
                 self.pending=None
-                self.queue.clear()
+                self.cancel_queue('前一条命令未获车端确认')
             if self.query and self.query['status']=='waiting' and now-self.query['time']>5:
                 self.query['status']='timeout'
                 self.log('参数查询没有回复；波形接收成功不代表车端能处理命令','error')
@@ -221,6 +283,7 @@ class Vehicle:
         try:
             while port.is_open and generation==self.generation:
                 data=port.read(min(port.in_waiting or 1,8192))
+                self.recorder.bytes('rx',data)
                 with self.lock:
                     self.rx_bytes+=len(data)
                 for item in decoder.feed(data):
@@ -245,7 +308,8 @@ class Vehicle:
                         last_frame_age=time.time()-latest['time'] if latest else None,
                         latest=latest,frames=frames,params=dict(self.params),query=dict(self.query) if self.query else None,
                         commands=[{k:v for k,v in c.items() if k not in ('text','deadline')} for c in self.commands],
-                        logs=[l for l in self.logs if l['id']>log_after],log_id=self.log_id)
+                        logs=[l for l in self.logs if l['id']>log_after],log_id=self.log_id,
+                        recording=self.recorder.status())
 
 vehicle=Vehicle()
 TOKEN=''
@@ -267,11 +331,28 @@ class Handler(BaseHTTPRequestHandler):
         parsed=urllib.parse.urlparse(self.path)
         path=parsed.path
         if path=='/api/meta':
-            return self.reply(200,dict(channels=[dict(id=i,name=c[0],unit=c[1],scale=c[2]) for i,c in enumerate(CHANNELS)],params=PARAMS,token=TOKEN))
+            return self.reply(200,dict(channels=[dict(id=i,name=c[0],unit=c[1],scale=c[2]) for i,c in enumerate(CHANNELS)],params=PARAMS,turn_table=TURN_TABLE_INFO,token=TOKEN))
         if path=='/api/ports':
             return self.reply(200,[dict(device=p.device,description=p.description) for p in vehicle_ports()])
         if path=='/api/state':
             return self.reply(200,vehicle.state())
+        if path.startswith('/api/recordings/') and path.endswith('/download'):
+            ident=path[len('/api/recordings/'):-len('/download')]
+            try:
+                archive=vehicle.recorder.archive(ident)
+            except ValueError as e:
+                return self.reply(404,dict(error=str(e)))
+            self.send_response(200)
+            self.send_header('Content-Type','application/zip')
+            self.send_header('Content-Length',str(archive.stat().st_size))
+            self.send_header('Content-Disposition',f'attachment; filename="{archive.name}"')
+            self.send_header('Cache-Control','no-store')
+            self.end_headers()
+            try:
+                with archive.open('rb') as f:
+                    while chunk:=f.read(65536): self.wfile.write(chunk)
+            except (BrokenPipeError,ConnectionResetError): pass
+            return
         if path=='/api/events':
             self.send_response(200)
             self.send_header('Content-Type','text/event-stream')
@@ -319,11 +400,19 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path=='/api/query':
                 vehicle.query_params()
             elif self.path=='/api/parameters':
+                if any(str(p.get('name','')).lower()=='turn_enable' for p in body['parameters']):
+                    raise ValueError('请使用独立转向表开关')
                 vehicle.submit(body['parameters'])
             elif self.path=='/api/stop':
                 vehicle.stop()
+            elif self.path=='/api/turn-table/switch':
+                vehicle.set_turn_table_enabled(body['enabled'])
             elif self.path=='/api/turn-table/disable':
                 vehicle.submit([dict(name=f'turn{i}',value=0) for i in range(1,21)])
+            elif self.path=='/api/recording/start':
+                return self.reply(200,vehicle.start_recording(body.get('note','')))
+            elif self.path=='/api/recording/stop':
+                return self.reply(200,vehicle.stop_recording())
             else:
                 return self.reply(404,dict(error='未知操作'))
             self.reply(200,dict(ok=True))
@@ -355,7 +444,11 @@ def main():
                 pass
         raise
     if args.serial_port:
-        vehicle.connect(args.serial_port,115200)
+        try:
+            vehicle.connect(args.serial_port,115200)
+        except (ValueError,serial.SerialException,OSError) as error:
+            vehicle.error=str(error)
+            vehicle.log('自动连接未成功：'+str(error),'error')
     print('PID 上位机：'+url,flush=True)
     if args.open:
         webbrowser.open(url)
@@ -364,6 +457,9 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        if vehicle.recorder.status()['active']:
+            try:vehicle.stop_recording()
+            except (OSError,ValueError):pass
         vehicle.disconnect()
         server.server_close()
 

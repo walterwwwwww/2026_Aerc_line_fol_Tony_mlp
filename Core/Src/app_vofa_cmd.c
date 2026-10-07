@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 
 /*
  * app_vofa_cmd.c
@@ -199,6 +200,7 @@ static const ParamEntry param_table[] = {
     { "max_time",   T_INT,   &max_time,         "auto stop ms"},
 
     /* ========= 转弯配置 ========= */
+    { "turn_enable", T_INT, &turn_table_enabled, "0=off 1=on" },
     { "entry_ms",   T_INT,   &turn_entry_ms,    "turn entry ms"},
     { "turn1",      T_INT,   &turn_slot_num[0], "slot1 turn#"},
     { "turn2",      T_INT,   &turn_slot_num[1], "slot2 turn#"},
@@ -382,8 +384,31 @@ static void parse_line(char *line)
             }
             else
             {
-                int v = (int)strtol(value, NULL, 10);
-                *(volatile int *)p->addr = v;
+                int v;
+                if (p->addr == &turn_table_enabled)
+                {
+                    char *end = NULL;
+                    errno = 0;
+                    long parsed = strtol(value, &end, 10);
+                    while (end && isspace((unsigned char)*end)) end++;
+                    if (end == value || !end || *end || errno == ERANGE ||
+                        (parsed != 0 && parsed != 1))
+                    {
+                        vofa_uart_echo("\r\n[ERR] turn_enable must be 0 or 1\r\n");
+                        return;
+                    }
+                    v = (int)parsed;
+                    if (!app_turn_table_set_enabled(v))
+                    {
+                        vofa_uart_echo("\r\n[ERR] stop vehicle before enabling turn table\r\n");
+                        return;
+                    }
+                }
+                else
+                {
+                    v = (int)strtol(value, NULL, 10);
+                    *(volatile int *)p->addr = v;
+                }
                 snprintf(tx_echo_buf, sizeof(tx_echo_buf),
                          "\r\n[OK] %s = %d\r\n", p->name, v);
             }

@@ -33,10 +33,13 @@ extern int   calibrated;       /* 1 = 已完成至少一次完整校准 */
 /* ---- 转弯计数导出变量 (可接 VOFA+ 观测) ---- */
 extern int   turn_count;           /* 当前第几弯 */
 extern int   turn_forced_flag;     /* 1 = 正在强制转向中 */
+extern volatile int turn_table_enabled; /* Runtime switch; boot default is 0. */
+int app_turn_table_set_enabled(int enabled); /* 0 if enable rejected while running. */
 extern int   turn_entry_ms;        /* 进弯确认时间 (ms) */
 
 /* ---- 每弯配置槽 (VOFA 可调) ---- */
 #define TURN_SLOT_MAX  20
+#define TURN_LOOKUP_SLOT_COUNT 5 /* Preserve the original active lookup range. */
 extern int   turn_slot_num[20];     /* 弯号 (0=空槽) */
 extern float turn_slot_angle[20];   /* 强制角度 (0=直走) */
 extern int   turn_slot_exit[20];    /* 出弯确认时间 (ms) */
