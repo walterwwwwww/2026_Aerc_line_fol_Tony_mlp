@@ -28,7 +28,7 @@ int chusaidaojuli = 0, chusaidao = 0;
 float P_tobeA = 200, D_tobeA = 0;
 
 /* ⚠️ 新增: 基础巡航速度 (原 app_get_speed() 里硬编码的 40, 改成变量以支持 VOFA 在线调整) */
-int base_speed = 90;
+int base_speed = 40;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     主状态机
@@ -100,11 +100,11 @@ void app_START(int mode)
                 if (anniu_zhuangtai[2][0] == 0 && anniu_zhuangtai[2][1] == 1)
                     motortest = 1;
 
-                app_get_speed();
                 speed_ = 0;
-                angle_ring(1);
+                jiaosudutobe = 0;
+                angle_ring(0);
                 app_motor_get(0);
-                app_motor_out(1);
+                app_motor_out(0);
             }
         }
     }

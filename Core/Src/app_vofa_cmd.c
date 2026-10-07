@@ -116,7 +116,7 @@ typedef enum { T_FLOAT, T_INT } ParamType;
 typedef struct {
     const char *name;      /* 命令里用的名字 (大小写不敏感) */
     ParamType   type;      /* T_FLOAT 或 T_INT */
-    void       *addr;      /* 全局变量地址 */
+    volatile void *addr;   /* Parameters may also be read by the control ISR. */
     const char *desc;      /* 简短描述 (用于 ? 命令回显) */
 } ParamEntry;
 
@@ -155,6 +155,22 @@ static const ParamEntry param_table[] = {
     /* ========= 外环 (方向环) PD ========= */
     { "P_tobeA",    T_FLOAT, &P_tobeA,          "outer P"     },
     { "D_tobeA",    T_FLOAT, &D_tobeA,          "outer D"     },
+
+    /* Independent magnitudes for software sensor indices 0..13. */
+    { "weight1",  T_FLOAT, &sensor_weight[0],  "sensor 1 weight" },
+    { "weight2",  T_FLOAT, &sensor_weight[1],  "sensor 2 weight" },
+    { "weight3",  T_FLOAT, &sensor_weight[2],  "sensor 3 weight" },
+    { "weight4",  T_FLOAT, &sensor_weight[3],  "sensor 4 weight" },
+    { "weight5",  T_FLOAT, &sensor_weight[4],  "sensor 5 weight" },
+    { "weight6",  T_FLOAT, &sensor_weight[5],  "sensor 6 weight" },
+    { "weight7",  T_FLOAT, &sensor_weight[6],  "sensor 7 weight" },
+    { "weight8",  T_FLOAT, &sensor_weight[7],  "sensor 8 weight" },
+    { "weight9",  T_FLOAT, &sensor_weight[8],  "sensor 9 weight" },
+    { "weight10", T_FLOAT, &sensor_weight[9],  "sensor 10 weight" },
+    { "weight11", T_FLOAT, &sensor_weight[10], "sensor 11 weight" },
+    { "weight12", T_FLOAT, &sensor_weight[11], "sensor 12 weight" },
+    { "weight13", T_FLOAT, &sensor_weight[12], "sensor 13 weight" },
+    { "weight14", T_FLOAT, &sensor_weight[13], "sensor 14 weight" },
 
     /* ========= 中环 (角速度环) PI ========= */
     { "P_A",        T_FLOAT, &P_A,              "gyro P"      },
@@ -264,13 +280,13 @@ void app_vofa_cmd_dump_params(void)
         {
             snprintf(tx_echo_buf, sizeof(tx_echo_buf),
                      "%-11s = %-10.3f  // %s\r\n",
-                     p->name, *(float *)p->addr, p->desc);
+                     p->name, *(volatile float *)p->addr, p->desc);
         }
         else
         {
             snprintf(tx_echo_buf, sizeof(tx_echo_buf),
                      "%-11s = %-10d  // %s\r\n",
-                     p->name, *(int *)p->addr, p->desc);
+                     p->name, *(volatile int *)p->addr, p->desc);
         }
         vofa_uart_echo(tx_echo_buf);
     }
@@ -348,15 +364,26 @@ static void parse_line(char *line)
         {
             if (p->type == T_FLOAT)
             {
-                float v = strtof(value, NULL);
-                *(float *)p->addr = v;
+                char *end = NULL;
+                float v = strtof(value, &end);
+                if (strncmp(p->name, "weight", 6) == 0)
+                {
+                    while (end && isspace((unsigned char)*end)) end++;
+                    if (end == value || !end || *end || !isfinite(v) ||
+                        v < 0.0f || v > SENSOR_WEIGHT_MAX)
+                    {
+                        vofa_uart_echo("\r\n[ERR] sensor weight must be a finite number in 0..100\r\n");
+                        return;
+                    }
+                }
+                *(volatile float *)p->addr = v;
                 snprintf(tx_echo_buf, sizeof(tx_echo_buf),
                          "\r\n[OK] %s = %.3f\r\n", p->name, v);
             }
             else
             {
                 int v = (int)strtol(value, NULL, 10);
-                *(int *)p->addr = v;
+                *(volatile int *)p->addr = v;
                 snprintf(tx_echo_buf, sizeof(tx_echo_buf),
                          "\r\n[OK] %s = %d\r\n", p->name, v);
             }

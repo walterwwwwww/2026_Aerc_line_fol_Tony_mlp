@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>循迹车 · PID 调试台</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/weights.css"></head>
+<body>
+<header><div><span class="eyebrow">INTELLIGENT RACING</span><h1>循迹车 <span>PID 调试台</span></h1></div><div class="connection"><span id="status-dot"></span><span id="connection-status">串口未连接</span></div></header>
+<section class="toolbar"><label>串口<select id="device" aria-label="串口设备"></select></label><button id="refresh">刷新</button><label>波特率<select id="baud"><option>115200</option><option>230400</option><option>57600</option><option>9600</option></select></label><button id="connect" class="primary">连接串口</button><span class="separator"></span><span id="rx-stats">等待数据</span><button id="stop" class="danger">发送停车指令 !</button></section>
+<div id="notice" role="status">连接后可以查看波形。参数只有收到车端确认，才会标为已生效。</div>
+<main>
+<aside>
+<div class="panel-title"><h2>参数调整</h2><button id="query">读取车端参数</button></div>
+<p class="muted" id="query-status">输入框内灰字是源码参考值，不代表车上当前值。</p>
+<div id="parameters"></div>
+<div class="profile-buttons"><button id="save-profile">保存参数草稿</button><button id="load-profile">载入草稿</button><input id="profile-file" type="file" accept="application/json,.json" hidden></div>
+<div class="profile-buttons"><button id="disable-table">临时停用转向表</button></div><p class="muted" id="table-status">当前新版固件默认关闭转向表；此按钮只临时清零弯号，保留正常 PID 循迹。</p>
+<p class="muted">参数在车端 RAM 中生效；断电或复位后恢复固件默认值。当前速度环两轮共用 KP_L / KI_L / KD_L。</p>
+</aside>
+<article>
+<section class="metrics"><div><span>目标速度</span><strong id="target">—</strong></div><div><span>左轮 / 右轮</span><strong id="speed">—</strong></div><div><span>实际角速度</span><strong id="gyro">—</strong></div><div><span>运行状态</span><strong id="run-status">—</strong></div></section>
+<div class="plot-toolbar"><h2>实时波形</h2><div><label>时间窗 <select id="window"><option value="10">10 秒</option><option value="30" selected>30 秒</option><option value="60">60 秒</option><option value="120">120 秒</option></select></label><button id="pause">暂停波形</button><button id="export">导出 CSV</button></div></div>
+<section class="chart-card"><div class="chart-heading"><h3>速度环</h3><span>脉冲 / 编码器采样</span></div><div class="legend" id="speed-legend"></div><canvas id="speed-chart" aria-label="目标速度、左轮速度和右轮速度波形"></canvas></section>
+<section class="chart-card"><div class="chart-heading"><h3>角速度环</h3><span>°/s</span></div><div class="legend" id="gyro-legend"></div><canvas id="gyro-chart" aria-label="目标角速度、实际角速度和误差波形"></canvas></section>
+<section class="chart-card"><div class="chart-heading"><h3>PWM 命令与差速</h3><span>车端命令值</span></div><div class="legend" id="pwm-legend"></div><canvas id="pwm-chart" aria-label="左右轮PWM命令和差速波形"></canvas></section>
+<section class="sensor-card"><div class="chart-heading"><h3>14 路传感器状态</h3><span id="calibration">等待数据 · 1=白，0=黑</span></div><div id="sensors"></div><p class="muted">当前串口发送的是二值状态，不能据此判断原始 ADC 幅值或是否已完成校准。</p></section>
+<section class="sensor-card weights-card"><div class="chart-heading"><h3>14 路传感器权重</h3><div class="weight-actions"><button id="query-weights">读取权重</button><button id="send-weights" class="primary">发送已填权重</button></div></div><p class="muted" id="weights-status">先读取车端参数。需要主板支持 weight1–weight14 命令，确认后才开放调整。</p><div id="weight-grid"></div><p class="muted">按车端 S01–S14 编号，填写幅值 0–100；左右方向由原算法决定。外侧优先扫描，权重只调整偏差贡献。修改在 RAM 中生效，复位后恢复固件默认值。</p></section>
+<details class="console"><summary>命令与接收日志 <span id="log-count">0</span></summary><pre id="log"></pre></details>
+</article>
+</main>
+<footer>本地串口调试 · 29 通道 · 波形时间轴为电脑接收时间 · 断开连接不会让车辆自动停车</footer>
+<div id="toast" role="alert"></div><script src="/app.js"></script>
+</body></html>

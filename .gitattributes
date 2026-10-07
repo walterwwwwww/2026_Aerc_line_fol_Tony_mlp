@@ -1,0 +1,8 @@
+# Keep imported ST/ARM source bytes and CRLF as supplied by upstream.
+Vendor/** -text -whitespace
+Sensor_board/Drivers/** -text -whitespace
+Sensor_board/Core/** -text -whitespace
+Sensor_board/ir_sensor.ioc -text -whitespace
+Sensor_board/startup_stm32f103xb.s -text -whitespace
+Sensor_board/STM32F103R8_FLASH.ld -text -whitespace
+startup_stm32f407xx.s -text -whitespace

@@ -1,0 +1,32 @@
+{
+  "format": "linfol-pid-v1",
+  "parameters": {
+    "KP_L": 70.0,
+    "KI_L": 0.5,
+    "KD_L": 0.0,
+    "P_A": 15.0,
+    "I_A": 0.5,
+    "P_tobeA": 200.0,
+    "D_tobeA": 0.0,
+    "base_speed": 50.0,
+    "pid_limit": 1000.0,
+    "pwm_limit": 9300.0,
+    "dead_zone": 700.0,
+    "duty_limit": 18000.0,
+    "weight1": 6.5,
+    "weight2": 5.0,
+    "weight3": 4.0,
+    "weight4": 3.0,
+    "weight5": 2.0,
+    "weight6": 1.0,
+    "weight7": 0.1,
+    "weight8": 0.1,
+    "weight9": 1.0,
+    "weight10": 2.0,
+    "weight11": 3.0,
+    "weight12": 4.0,
+    "weight13": 5.0,
+    "weight14": 6.5
+  },
+  "note": "Demo preset from the last confirmed serial values; load does not automatically send settings."
+}

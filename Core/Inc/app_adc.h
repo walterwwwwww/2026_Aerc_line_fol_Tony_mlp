@@ -7,6 +7,7 @@
  */
 
 #include "main.h"
+#include "app_sensor_weights.h"
 
 /* ---- 传感器通道数 ---- */
 #define SENSOR_COUNT      14
@@ -21,6 +22,7 @@ extern uint16_t adc_raw[SENSOR_COUNT];
 extern float adc_test[SENSOR_COUNT];
 extern float adc_beijing[SENSOR_COUNT];
 extern float adc_xian[SENSOR_COUNT];
+extern volatile float sensor_weight[SENSOR_COUNT];
 extern float adc_error;
 extern float adc_error_l;
 extern float adc_error_average[10];
@@ -41,6 +43,7 @@ extern int   turn_slot_exit[20];    /* 出弯确认时间 (ms) */
 
 /* ---- 函数声明 ---- */
 void  app_adc_init(void);
+void  app_adc_poll(void); /* Blocking SPI acquisition; call in thread mode. */
 void  app_adc_get(void);
 
 #endif /* APP_ADC_H */

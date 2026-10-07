@@ -118,6 +118,7 @@ int main(void)
                           //   改由 VOFA+ 在线调参 (app_vofa_cmd) 取代
 
   HAL_TIM_Base_Start_IT(&htim7);  // 启动 1ms 控制中断!
+  uint32_t adc_poll_tick = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -141,6 +142,15 @@ int main(void)
      *   - 放在主循环, 响应延迟 <10ms 足够用
      */
     app_vofa_cmd_process();
+
+    /* Keep blocking SPI out of the 1ms control ISR so serial commands and
+     * SysTick can run. ADC/calibration/control calculations still run at 1ms. */
+    uint32_t now = HAL_GetTick();
+    if ((uint32_t)(now - adc_poll_tick) >= 5u)
+    {
+      app_adc_poll();
+      adc_poll_tick = HAL_GetTick();
+    }
 
     /*
      * VOFA 数据发送移到主循环 (不在 TIM7 ISR 里)

@@ -9,10 +9,10 @@
       "cwd": "${workspaceFolder}",
       "executable": "build/Debug/linfol_final.elf",
       "configFiles": [
-        "/usr/local/share/openocd/scripts/interface/stlink.cfg",
-        "/usr/local/share/openocd/scripts/target/stm32f4x.cfg"
+        "interface/stlink.cfg",
+        "target/stm32f4x.cfg"
       ],
-      "device": "STM32F407VG",
+      "device": "STM32F407VE",
       "runToEntryPoint": "main",
       "preLaunchTask": "Build Debug",
       "liveWatch": {
@@ -28,13 +28,16 @@
       "cwd": "${workspaceFolder}",
       "executable": "build/Debug/linfol_final.elf",
       "configFiles": [
-        "/usr/local/share/openocd/scripts/interface/stlink.cfg",
-        "/usr/local/share/openocd/scripts/target/stm32f4x.cfg"
+        "interface/stlink.cfg",
+        "target/stm32f4x.cfg"
       ],
-      "device": "STM32F407VG",
+      "device": "STM32F407VE",
       "runToEntryPoint": "main",
       "preLaunchTask": "Build Debug",
-      "postLaunchCommands": ["monitor reset run", "quit"]
+      "postLaunchCommands": [
+        "monitor reset run",
+        "quit"
+      ]
     }
   ]
 }

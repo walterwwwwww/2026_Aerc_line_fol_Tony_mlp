@@ -9,7 +9,7 @@
 float adc_beijing[SENSOR_COUNT];
 float adc_xian[SENSOR_COUNT];
 
-float adc_quan[SENSOR_HALF] = {0.1, 1, 2, 3, 4, 5, 6.5};
+volatile float sensor_weight[SENSOR_COUNT] = SENSOR_WEIGHT_DEFAULTS;
 
 /* ---- 传感器数据 ---- */
 float adc_test[SENSOR_COUNT] = {0};
@@ -21,6 +21,12 @@ int   jiaozhun = 0;
 int   calibrated = 0;
 
 uint16_t adc_raw[SENSOR_COUNT] = {0};
+
+/* Main-loop SPI worker publishes complete frames. The 1ms ISR only reads the
+ * active buffer; it never blocks on SPI. Main cannot overwrite that buffer
+ * while the ISR is running, since the ISR preempts main. */
+static uint16_t adc_snapshot[2][SENSOR_COUNT];
+static volatile uint8_t adc_snapshot_active = 0u;
 
 /* ---- 丢线 ---- */
 static int lost_line_cnt = 0;
@@ -60,6 +66,9 @@ int turn_entry_ms = 10;               /* 进弯确认时间 (ms, VOFA 可调) */
  *   角度=0 表示直走 (不强制转向, 只使用该弯的出弯时间)
  */
 #define TURN_SLOT_MAX  5
+/* Temporary disable: keep the original table so it can be restored by
+ * changing this switch to 1. Normal sensor/PID steering remains active. */
+#define TURN_FORCE_TABLE_ENABLED  0
 // int   turn_slot_num[20]   = { 1,  2,  4,  5,  7, 11, 12, 15, 16, 17, 18, 19, 20, 21};
 // float turn_slot_angle[20] = {40, 40, 40,  1,  1, -40,-40,-60, 60,-60, 60,-60, 60,-60};
 // int   turn_slot_exit[20]  = { 5, 200, 5,  5, 20,   2,  2,  5, 5, 5, 5, 5, 5};   /* 多余初始化为 0 */
@@ -322,6 +331,9 @@ void app_adc_init(void)
     uint16_t dummy[SENSOR_COUNT];
     ir_sensor_read(dummy);
     memcpy(adc_raw, dummy, sizeof(adc_raw));
+    memcpy(adc_snapshot[0], dummy, sizeof(dummy));
+    memcpy(adc_snapshot[1], dummy, sizeof(dummy));
+    adc_snapshot_active = 0u;
 
     /* 重置转弯计数 */
     turn_count = 0;
@@ -331,13 +343,22 @@ void app_adc_init(void)
     turn_exit_cnt = 0;
 }
 
+void app_adc_poll(void)
+{
+    uint8_t next = adc_snapshot_active ^ 1u;
+    ir_sensor_read(adc_snapshot[next]);
+    __DMB();
+    adc_snapshot_active = next;
+}
+
 void app_adc_get(void)
 {
     adc_error_l = adc_error;
     adc_sum = 0;
 
     uint16_t raw[SENSOR_COUNT];
-    ir_sensor_read(raw);
+    uint8_t active = adc_snapshot_active;
+    memcpy(raw, adc_snapshot[active], sizeof(raw));
     memcpy(adc_raw, raw, sizeof(adc_raw));
 
     for (int i = 0; i < SENSOR_COUNT; i++)
@@ -428,7 +449,8 @@ void app_adc_get(void)
                 /* 还没转够: 给一个恒定偏差, 驱动车持续转弯 */
                 line_found = 1;
                 float dir = (forced_target_angle > 0) ? 1.0f : -1.0f;
-                adc_error_average[9] = dir * FORCE_ERROR_MAG * adc_quan[SENSOR_HALF - 1];
+                float outer_weight = dir < 0.0f ? sensor_weight[0] : sensor_weight[SENSOR_COUNT - 1];
+                adc_error_average[9] = dir * FORCE_ERROR_MAG * outer_weight;
             }
         }
 
@@ -446,12 +468,9 @@ void app_adc_get(void)
                     if (if_bai[i] == 0 || if_bai[j] == 0)
                     {
                         line_found = 1;
-                        if (if_bai[i] == 0 && if_bai[j] == 0)
-                            adc_error_average[9] = (adc_test[j] - adc_test[i]) * adc_quan[SENSOR_HALF - 1 - i];
-                        else if (if_bai[i] == 0)
-                            adc_error_average[9] = -10.0f * adc_quan[SENSOR_HALF - 1 - i];
-                        else
-                            adc_error_average[9] = 10.0f * adc_quan[SENSOR_HALF - 1 - i];
+                        adc_error_average[9] = sensor_pair_error(
+                            adc_test[i], adc_test[j], sensor_weight[i], sensor_weight[j],
+                            if_bai[i] == 0, if_bai[j] == 0);
                         break;
                     }
                 }
@@ -477,7 +496,7 @@ void app_adc_get(void)
 
                     /* 查配置槽: 匹配弯号 → 读取角度 + 出弯时间 */
                     current_exit_ms = 5;   /* 默认值 (未匹配到槽位时) */
-                    for (int t = 0; t < TURN_SLOT_MAX; t++)
+                    for (int t = 0; TURN_FORCE_TABLE_ENABLED && t < TURN_SLOT_MAX; t++)
                     {
                         if (turn_slot_num[t] == 0) continue;   /* 空槽位, 跳过 */
                         if (turn_slot_num[t] == turn_count)

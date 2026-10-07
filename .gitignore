@@ -1,19 +1,21 @@
-# Build artifacts
-build/
-
-# CMake
-CMakeLists.txt
-CMakePresets.json
-cmake/
-
-# Drivers
-Drivers/
-
-# Linker & startup
-*.ld
-*.s
-
-# Archives
+.DS_Store
+._*
+**/build/
+build-*/
+**/.venv/
+**/__pycache__/
+*.py[cod]
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
 *.zip
-
-# Everything else not in Core/, *.ioc, *.md
+.superdesign/
+# The old local driver copy is unused; reproducible sources are under Vendor/.
+/Drivers/
+# Operator captures, backup firmware and raw debug files stay local.
+pid-tuner/firmware-fix/
+pid-tuner/validation/
+pid-tuner/recordings/

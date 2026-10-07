@@ -1,0 +1,21 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(FIRMWARE_TOOLCHAIN_BIN "$ENV{FIRMWARE_TOOLCHAIN_BIN}" CACHE PATH
+    "Bin directory of a complete Arm GNU toolchain including Newlib")
+if(FIRMWARE_TOOLCHAIN_BIN)
+    find_program(ARM_GNU_GCC arm-none-eabi-gcc PATHS "${FIRMWARE_TOOLCHAIN_BIN}" NO_DEFAULT_PATH REQUIRED)
+else()
+    find_program(ARM_GNU_GCC arm-none-eabi-gcc REQUIRED)
+endif()
+get_filename_component(ARM_GNU_BIN "${ARM_GNU_GCC}" DIRECTORY)
+find_program(ARM_GNU_OBJCOPY arm-none-eabi-objcopy PATHS "${ARM_GNU_BIN}" NO_DEFAULT_PATH REQUIRED)
+find_program(ARM_GNU_SIZE arm-none-eabi-size PATHS "${ARM_GNU_BIN}" NO_DEFAULT_PATH REQUIRED)
+set(CMAKE_C_COMPILER "${ARM_GNU_GCC}")
+set(CMAKE_ASM_COMPILER "${ARM_GNU_GCC}")
+execute_process(COMMAND "${ARM_GNU_GCC}" -print-file-name=libc.a
+    OUTPUT_VARIABLE ARM_GNU_LIBC OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE ARM_GNU_CHECK)
+if(NOT ARM_GNU_CHECK EQUAL 0 OR NOT EXISTS "${ARM_GNU_LIBC}")
+    message(FATAL_ERROR "A complete Arm GNU toolchain with Newlib is required. Set FIRMWARE_TOOLCHAIN_BIN to its bin directory.")
+endif()
