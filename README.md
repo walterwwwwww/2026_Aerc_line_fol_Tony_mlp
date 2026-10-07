@@ -1,8 +1,8 @@
-# LineFollower STM32 移植工程
+# LineFollower STM32
 
 ## 1. 工程概述
 
-本工程将原始 LineFollower 项目 (CYT2BL3 / 逐飞科技平台) 移植到 **STM32F407VGT6** 平台,
+LineFollower 项目运行在 **STM32F407VGT6** 平台,
 搭配 **14 路 SensorBoard** 红外传感器阵列。
 
 ### 核心原则
